@@ -2331,11 +2331,34 @@ define("flight/lib/utils", [], function() {
                 }.bind(this)), TD.controller.stats.tweetStreamImpression(this.column.getColumnType(), s)
             }
         }, this.after("initialize", function() {
-            this.columnKey = this.$node.data("column"), this.column = TD.controller.columnManager.get(this.columnKey), this.$socialProofContainer = this.select("socialProofSelector"), this.$columnOptions = this.select("columnOptionsSelector"), this.$scrollContainer = this.select("scrollContainerSelector"), this.attr.tweetImpressionTrackingPeriod > 0 && (this.scribeTweetImpressions = _.throttle(this.scribeTweetImpressions.bind(this), this.attr.tweetImpressionTrackingPeriod)), this.on(document, "uiShowDetailView", this.handleShowDetailView), this.on("uiDetailViewActive", this.handleDetailViewActive), this.on("uiDetailViewClosed", this.handleDetailViewClosed), this.on("uiCloseDetailView", this.handleCloseDetailView), this.on("uiSocialProofForTweetClosed", this.handleSocialProofClosed), this.on("uiShowSocialProof", this.handleShowSocialProof), this.on("uiCloseSocialProof", this.handleCloseSocialProof), this.on("uiColumnOptionsShown", this.handleColumnOptionsShown), this.on("uiHidingColumnOptions", this.handleHidingColumnOptions), this.on("uiShowingColumnOptions", this.handleShowingColumnOptions), this.on("uiColumnOptionsHidden", this.handleColumnOptionsHidden), this.on("uiMarkAllMessagesRead", this.handleMarkAllRead), this.on("uiReadStateChange", this.handleReadStateChange), this.on("uiTransitionExpandStart", {
+            this.columnKey = this.$node.data("column"), this.column = TD.controller.columnManager.get(this.columnKey), this.$socialProofContainer = this.select("socialProofSelector"), this.$columnOptions = this.select("columnOptionsSelector"), this.$scrollContainer = this.select("scrollContainerSelector"), this.attr.tweetImpressionTrackingPeriod > 0 && (this.scribeTweetImpressions = _.throttle(this.scribeTweetImpressions.bind(this), this.attr.tweetImpressionTrackingPeriod)),
+            this.on(document, "uiShowDetailView", this.handleShowDetailView),
+            this.on("uiDetailViewActive", this.handleDetailViewActive),
+            this.on("uiDetailViewClosed", this.handleDetailViewClosed),
+            this.on("uiCloseDetailView", this.handleCloseDetailView),
+            this.on("uiSocialProofForTweetClosed", this.handleSocialProofClosed),
+            this.on("uiShowSocialProof", this.handleShowSocialProof),
+            this.on("uiCloseSocialProof", this.handleCloseSocialProof),
+            this.on("uiColumnOptionsShown", this.handleColumnOptionsShown),
+            this.on("uiHidingColumnOptions", this.handleHidingColumnOptions),
+            this.on("uiShowingColumnOptions", this.handleShowingColumnOptions),
+            this.on("uiColumnOptionsHidden", this.handleColumnOptionsHidden),
+            this.on("uiMarkAllMessagesRead", this.handleMarkAllRead),
+            this.on("uiReadStateChange", this.handleReadStateChange),
+            this.on("uiTransitionExpandStart", {
                 columnOptionsSelector: this.handleColumnOptionsTransitionStart
-            }), this.on("uiColumnUpdateSearchFilter", this.handleUpdateSearchFilter), this.on("uiColumnUpdateMediaPreview", this.handleUpdateMediaPreview), this.on("dataColumnUpdatingFilters dataColumnUpdatingFeed", this.handleColumnUpdating), this.on("dataColumnFiltersUpdated dataColumnFeedUpdated", this.handleColumnUpdated), this.on("uiRemoveColumn", this.teardown), this.on(document, "uiFocus", function(e, t) {
+            }),
+            this.on("uiColumnUpdateSearchFilter", this.handleUpdateSearchFilter),
+            this.on("uiColumnUpdateMediaPreview", this.handleUpdateMediaPreview),
+            this.on("dataColumnUpdatingFilters dataColumnUpdatingFeed", this.handleColumnUpdating),
+            this.on("dataColumnFiltersUpdated dataColumnFeedUpdated", this.handleColumnUpdated),
+            this.on("uiRemoveColumn", this.teardown),
+            this.on(document, "uiFocus", function(e, t) {
                 this.hasFocus = t.id === this.attr.focusId, this.hasFocus && this.scribeTweetImpressions()
-            }), this.on(this.$scrollContainer, "scroll", this.scribeTweetImpressions), this.on(document, "uiColumnVisibilities", this.handleColumnVisibilities), this.on(document, "uiColumnChirpsChanged", function(e, t) {
+            }),
+            this.on(this.$scrollContainer, "scroll", this.scribeTweetImpressions),
+            this.on(document, "uiColumnVisibilities", this.handleColumnVisibilities),
+            this.on(document, "uiColumnChirpsChanged", function(e, t) {
                 t.id === this.columnKey && this.scribeTweetImpressions()
             }), this.on("uiDetailViewClosed", this.scribeTweetImpressions)
         })
