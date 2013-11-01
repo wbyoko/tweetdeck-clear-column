@@ -3158,7 +3158,7 @@ define("flight/lib/utils", [], function() {
                         o = e.getTitleHTML(),
                         a = Y.getColumnElementByKey(r),
                         c = e.isMessageColumn() && (t.config.internal_build || t.decider.get(t.decider.DM_READ_STATE)),
-                        iC = !e && e.isClearable(),
+                        iC = !c && e.isClearable(),
                         hA = e || iC;
                     s = e.temporary && e.getColumnType() === t.util.columnUtils.columnMetaTypes.SEARCH ? t.i("results") : e.getDetailTitleHTML(), i = t.ui.template.render("column/column_header", {
                         columntitle: o,
