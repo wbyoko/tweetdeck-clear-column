@@ -2302,6 +2302,8 @@ define("flight/lib/utils", [], function() {
             this.trigger(this.$columnOptions, "uiReceivedAsyncResponse")
         }, this.handleMarkAllRead = function() {
             this.column.markAllMessagesAsRead()
+        }, this.handleColumnClear = function() {
+            this.column.clear()
         }, this.handleReadStateChange = function(e, t) {
             var i = this.select("columnHeaderSelector");
             t.columnKey = this.columnKey, this.column.isMessageColumn() ? t.read = !this.column.hasUnreadMessages() : this.$node.toggleClass(this.attr.isNewClass, !t.read), i.toggleClass(this.attr.isNewClass, !t.read)
@@ -2344,6 +2346,7 @@ define("flight/lib/utils", [], function() {
             this.on("uiShowingColumnOptions", this.handleShowingColumnOptions),
             this.on("uiColumnOptionsHidden", this.handleColumnOptionsHidden),
             this.on("uiMarkAllMessagesRead", this.handleMarkAllRead),
+            this.on("uiColumnClearAction", this.handleColumnClear),
             this.on("uiReadStateChange", this.handleReadStateChange),
             this.on("uiTransitionExpandStart", {
                 columnOptionsSelector: this.handleColumnOptionsTransitionStart
@@ -3045,6 +3048,11 @@ define("flight/lib/utils", [], function() {
                             columnKey: n
                         });
                         break;
+                    case "clear":
+                        s.trigger("uiColumnClearAction", {
+                            columnKey: n
+                        });
+                        break;
                     case "user-filter":
                     case "content-filter":
                     case "action-filter":
@@ -3149,12 +3157,16 @@ define("flight/lib/utils", [], function() {
                         r = e.model.getKey(),
                         o = e.getTitleHTML(),
                         a = Y.getColumnElementByKey(r),
-                        c = e.isMessageColumn() && (t.config.internal_build || t.decider.get(t.decider.DM_READ_STATE));
+                        c = e.isMessageColumn() && (t.config.internal_build || t.decider.get(t.decider.DM_READ_STATE)),
+                        iC = !e && e.isClearable(),
+                        hA = e || iC;
                     s = e.temporary && e.getColumnType() === t.util.columnUtils.columnMetaTypes.SEARCH ? t.i("results") : e.getDetailTitleHTML(), i = t.ui.template.render("column/column_header", {
                         columntitle: o,
                         columniconclass: n,
                         isTemporary: e.temporary,
-                        withMarkAllRead: c
+                        withMarkAllRead: c,
+                        hasHeaderAction: hA,
+                        isClearable: iC
                     }), P(e.model.getKey()).replaceWith(i), i = t.ui.template.render("column/column_header_detail", {
                         headerClass: "js-detail-header",
                         headerAction: "resetToTopColumn",

@@ -30,10 +30,13 @@ this.TD_mustaches["column/column_header.mustache"]=
 	'<i class="pull-left margin-hs column-type-icon icon {{columniconclass}}"></i>  ' + 
 	'{{#isTemporary}} <button class="js-action-header-button pull-right btn list-edit-button is-hidden" data-action="editList"></button> {{/isTemporary}}  ' + 
 	'{{^isTemporary}} <span class="column-number"></span> {{/isTemporary}}  ' + 
-	'<h1 class="column-title {{#withMarkAllRead}}column-title-messages{{/withMarkAllRead}} txt-ellipsis">{{{columntitle}}}</h1>  ' + 
+	'<h1 class="column-title {{#hasHeaderAction}}column-title-messages{{/hasHeaderAction}} txt-ellipsis">{{{columntitle}}}</h1>  ' + 
 	'{{#withMarkAllRead}} <a class="js-action-header-button column-header-link mark-all-read-link" href="#" data-action="mark-all-read" > ' + 
 		'<i class="js-show-tip icon icon-mark-all-read" data-placement="bottom" title="{{_i}}Mark all as read{{/i}}"></i> ' + 
 	'</a> {{/withMarkAllRead}}  ' + 
+	'{{#isClearable}} <a class="js-action-header-button column-header-link mark-all-read-link" href="#" data-action="clear" > ' + 
+		'<i class="js-show-tip icon icon-mark-all-read" data-placement="bottom" title="{{_i}}Clear Tweets{{/i}}"></i> ' + 
+	'</a> {{/isClearable}} ' +
 	'{{^isTemporary}} <a class="js-action-header-button column-header-link column-settings-link" href="#" data-action="options"> <i class="icon icon-arrow-down"></i> <i class="icon icon-arrow-up"></i> </a> {{/isTemporary}} ' + 
 '</header>',
 
