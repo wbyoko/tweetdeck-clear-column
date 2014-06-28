@@ -21,21 +21,23 @@ wbyoko
 
 1. install js-beautify globaly
 
-	npm -g install js-beautify
+	```npm -g install js-beautify```
 
 2. go to web directory
 	
-	cd /Applications/TweetDeck.app/Contents/Resources/htdocs/web
+	```cd /Applications/TweetDeck.app/Contents/Resources/htdocs/web```
 
 3. pretty print templates and main js
 
-	cd scripts/swift/app/
-	sudo chmod 777 main.*
-	js-beautify -r main.*
+	```cd scripts/swift/app/```
+	
+	```sudo chmod 777 main.*```
+	
+	```js-beautify -r main.*```
 
-	cd ../../../mustaches/
+	```cd ../../../mustaches/```
 
-	sudo sed -i.bu 's/this\.TD_mustaches/\
-this\.TD_mustaches/g' mustaches.*
+	```sudo sed -i.bu 's/this\.TD_mustaches/\
+this\.TD_mustaches/g' mustaches.*```
 
 4. add isClearable and hasHeaderActions to templates / js
