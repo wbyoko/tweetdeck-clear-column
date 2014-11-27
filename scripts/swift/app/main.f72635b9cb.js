@@ -211,7 +211,7 @@ define("flight/lib/utils", [], function() {
             writable: !0
         }), i.call(t), Object.defineProperty(t, e, {
             writable: s
-        }), void 0) : void i.call(t)
+        }), void 0) : (i.call(t), void 0)
     }
 
     function n(t, e) {
@@ -600,8 +600,8 @@ function(t, e) {
         }, r = _.isUndefined(r) ? 1 : r;
         var h = [],
             l = function() {
-                if (t.maybe_log(["_maybe_do_stuff", s, "want stuff done:", a, "am doing stuff:", c], n), !a) return void t.maybe_log("not doing stuff; someone else did stuff before us", n);
-                if (c) return void t.maybe_log("am already doing stuff", n);
+                if (t.maybe_log(["_maybe_do_stuff", s, "want stuff done:", a, "am doing stuff:", c], n), !a) return t.maybe_log("not doing stuff; someone else did stuff before us", n), void 0;
+                if (c) return t.maybe_log("am already doing stuff", n), void 0;
                 c = !0, a = !1;
                 var o = TD.controller.progressIndicator;
                 if (i) var r = o.addTask(i);
@@ -731,7 +731,7 @@ function(t, e) {
                     try {
                         t.setItem(i, e.getItem(i))
                     } catch (s) {
-                        if (s.code === window.DOMException.QUOTA_EXCEEDED_ERR) return void TD.sync.util.warn("Migration failed due to quota limits.", s);
+                        if (s.code === window.DOMException.QUOTA_EXCEEDED_ERR) return TD.sync.util.warn("Migration failed due to quota limits.", s), void 0;
                         throw s
                     }
                     e.removeItem(i)
@@ -753,7 +753,7 @@ function(t, e) {
         }
     }, i.prototype.getTweetdeckAccount = function() {
         var t = this._backend.getItem(s);
-        return t ? t : void e.stateLog("store.getTweetdeckAccount(): tdacct invalid", t)
+        return t ? t : (e.stateLog("store.getTweetdeckAccount(): tdacct invalid", t), void 0)
     }, i.prototype.setTweetdeckAccount = function(t) {
         TD.sync.util.assert(t, "user identifer must be given to set tweetdeck account"), this._backend.setItem(s, t)
     }, i.prototype.getTwitterLoginAccount = function() {
@@ -833,7 +833,7 @@ function(t, e) {
                 try {
                     e = i.getJSON(name)
                 } catch (s) {
-                    return void TD.sync.util.stateLog("Error parsing JSON for storage key", t)
+                    return TD.sync.util.stateLog("Error parsing JSON for storage key", t), void 0
                 }
                 this.trigger(document, "dataStorageItem", {
                     name: t,
@@ -883,14 +883,81 @@ function(t, e) {
                 accountKey: t,
                 id: i.getUserID(),
                 screenName: i.getUsername(),
-                profileImageUrl: i.getProfileImageURL()
+                profileImageURL: i.getProfileImageURL()
             }
         }
     }
     return t
-}), define("data/accounts", ["require", "flight/lib/component", "data/with_client"], function(t) {
+}), define("data/with_accounts", [], function() {
+    function t() {
+        this.defaultAttrs({
+            service: "twitter"
+        }), this.getCurrentAuthType = function() {
+            return TD.storage.store.getCurrentAuthType()
+        }, this.getTwitterLoginAccount = function() {
+            var t = TD.storage.store.getTwitterLoginAccount();
+            return t && this.serializeAccount(t)
+        }, this.getTweetdeckLoginEmail = function() {
+            return TD.storage.store.getTweetdeckAccount()
+        }, this.getDefaultAccount = function() {
+            var t = TD.storage.accountController.getDefault();
+            return null === t ? null : this.serializeAccount(t)
+        }, this.setDefaultAccount = function(t) {
+            TD.storage.accountController.setDefault(t)
+        }, this.getAccount = function(t) {
+            return this.serializeAccount(TD.storage.accountController.get(t))
+        }, this.removeAccount = function(t) {
+            TD.controller.clients.removeClient(t)
+        }, this.getAccountsForService = function(t) {
+            var e = TD.storage.accountController.getAccountsForService(t);
+            return this.serializeAccounts(e).sort(this.sortAccounts)
+        }, this.serializeAccount = function(t) {
+            var e = TD.storage.accountController.getDefault(),
+                i = TD.storage.store.getTwitterLoginAccount();
+            return {
+                name: t.getName(),
+                accountKey: t.getKey(),
+                profileImageURL: t.getProfileImageURL(),
+                userId: t.getUserID(),
+                screenName: t.getUsername(),
+                isProtected: t.getIsPrivate(),
+                isDefault: t === e,
+                isTwoginAccount: t === i,
+                isAdmin: t.getIsAdmin()
+            }
+        }, this.serializeAccounts = function(t) {
+            return t.map(this.serializeAccount.bind(this))
+        }, this.sortAccounts = function(t, e) {
+            var i, s;
+            if (TD.storage.store.getTwitterLoginAccount()) {
+                if (t.isTwoginAccount) return -1;
+                if (e.isTwoginAccount) return 1
+            } else {
+                if (t.isDefault) return -1;
+                if (e.isDefault) return 1
+            }
+            return i = t.screenName.toLowerCase(), s = e.screenName.toLowerCase(), s > i ? -1 : i > s ? 1 : 0
+        }, this.reauthorizeAccount = function(t) {
+            var e = TD.storage.accountController.get(t);
+            TD.controller.clients.addClient(this.attr.service, e, !0)
+        }, this.addAccount = function() {
+            TD.controller.clients.addClient(this.attr.service)
+        }, this.resetTweetdeckPassword = function() {
+            var t = TD.storage.store.getTweetdeckAccount();
+            return TD.controller.clients.getTDClient().forgotPassword(t)
+        }, this.setIsAdmin = function(t, e) {
+            var i = TD.storage.accountController.get(t);
+            i.setIsAdmin(e)
+        }
+    }
+    return t
+}), define("data/accounts", ["require", "flight/lib/component", "data/with_client", "data/with_accounts"], function(t) {
     function e() {
-        this.sendAccounts = function(t) {
+        this.after("initialize", function() {
+            this.on(document, "uiNeedsAccounts", this.handleUiNeedsAccounts), this.on(document, "uiNeedsAccount", this.handleUiNeedsAccount), this.on(document, "uiNeedsDefaultAccount", this.handleNeedsDefaultAccount), this.subscription = $.subscribe("/storage/client/default_account_changed", this.handleDefaultAccountChanged.bind(this)), this.subscriptionToAccountChange = $.subscribe("/storage/account/change", this.getAndSendAccounts.bind(this)), this.on(document, "dataAccountWhitelist", this.handleAccountWhitelist), this.on(document, "uiAccountAction", this.handleAccountAction), this.on(document, "dataContributorActionSuccess", this.handleContributorActionSuccess)
+        }), this.before("teardown", function() {
+            $.unsubscribe(this.subscription), $.unsubscribe(this.subscriptionToAccountChange)
+        }), this.sendAccounts = function(t) {
             this.trigger(document, "dataAccounts", {
                 accounts: t
             })
@@ -898,32 +965,18 @@ function(t, e) {
             this.trigger(document, "dataAccount", {
                 account: t
             })
-        }, this.serializeAccountObject = function(t) {
-            return {
-                accountKey: t.getKey(),
-                profileImageUrl: t.getProfileImageURL(),
-                screenName: t.getUsername()
-            }
-        }, this.processAccountObjects = function(t) {
-            return t.map(this.serializeAccountObject.bind(this))
-        }, this.sortAccounts = function(t, e) {
-            var i = TD.storage.accountController.getDefault();
-            return !e && i && (e = i.getKey()), 1 === t.length ? (this.defaultAccountKey = t[0].accountKey, t[0].isDefault = !0) : t.forEach(function(t) {
-                t.accountKey === e ? (t.isDefault = !0, this.defaultAccountKey = t.accountKey) : t.isDefault = !1
-            }, this), t.sort(function(t, e) {
-                var i, s;
-                return t.isDefault ? -1 : e.isDefault ? 1 : (i = t.screenName.toLowerCase(), s = e.screenName.toLowerCase(), s > i ? -1 : i > s ? 1 : 0)
-            })
-        }, this.getAndSendAccounts = function(t) {
-            var e = TD.storage.accountController.getAccountsForService("twitter");
-            e = this.processAccountObjects(e), e = this.sortAccounts(e, t), this.sendAccounts(e)
+        }, this.getAndSendAccounts = function() {
+            var t = this.getAccountsForService("twitter");
+            this.sendAccounts(t)
         }, this.getAndSendAccount = function(t) {
-            var e = TD.storage.accountController.get(t);
-            e && (e = this.serializeAccountObject(e)), this.sendAccount(e)
-        }, this.handleDefaultAccount = function(t, e) {
-            this.defaultAccountKey !== e.accountKey && (this.defaultAccountKey = e.accountKey, this.getAndSendAccounts(this.defaultAccountKey), this.trigger("dataTwitterClientChanged", {
+            var e = this.getAccount(t);
+            this.sendAccount(e)
+        }, this.handleDefaultAccountChanged = function() {
+            this.trigger("dataDefaultAccount", {
+                accountKey: this.getDefaultAccount().accountKey
+            }), this.getAndSendAccounts(), this.trigger("dataTwitterClientChanged", {
                 client: this.getTwitterClient()
-            }))
+            })
         }, this.handleUiNeedsAccounts = function() {
             this.getAndSendAccounts()
         }, this.handleUiNeedsAccount = function(t, e) {
@@ -931,17 +984,51 @@ function(t, e) {
         }, this.handleAccountWhitelist = function() {
             this.getAndSendAccounts()
         }, this.handleNeedsDefaultAccount = function() {
-            var t = TD.storage.accountController.getDefault();
-            t && this.trigger("dataDefaultAccount", {
-                accountKey: t.getKey()
-            })
-        }, this.after("initialize", function() {
-            this.defaultAccountKey = null, this.on(document, "uiNeedsAccounts", this.handleUiNeedsAccounts), this.on(document, "uiNeedsAccount", this.handleUiNeedsAccount), this.on(document, "uiNeedsDefaultAccount", this.handleNeedsDefaultAccount), this.on(document, "dataDefaultAccount", this.handleDefaultAccount), this.on(document, "dataAccountWhitelist", this.handleAccountWhitelist)
-        })
+            var t = this.getDefaultAccount();
+            t && this.trigger("dataDefaultAccount", t)
+        }, this.handleAccountAction = function(t, e) {
+            switch (e.action) {
+                case "reauthorize":
+                    this.reauthorizeAccount(e.accountKey);
+                    break;
+                case "remove":
+                    this.removeAccount(e.accountKey);
+                    break;
+                case "setDefault":
+                    this.setDefaultAccount(e.accountKey);
+                    break;
+                case "add":
+                    this.addAccount();
+                    break;
+                case "passwordReset":
+                    var i = this.resetTweetdeckPassword();
+                    i.addCallbacks(function(t) {
+                        this.trigger("dataAccountActionSuccess", {
+                            request: e,
+                            response: t
+                        })
+                    }.bind(this), function(t) {
+                        this.trigger("dataAccountActionError", {
+                            request: e,
+                            response: t
+                        })
+                    }.bind(this))
+            }
+        }, this.handleContributorActionSuccess = function(t, e) {
+            var i = this.getTwitterLoginAccount();
+            if (i) switch (e.request.action) {
+                case "remove":
+                    e.request.userId === i.userId && this.removeAccount(e.request.accountKey);
+                    break;
+                case "update":
+                    e.request.userId === i.userId && this.setIsAdmin(e.request.accountKey, e.request.isAdmin)
+            }
+        }
     }
     var i = t("flight/lib/component"),
-        s = t("data/with_client");
-    return i(e, s)
+        s = t("data/with_client"),
+        n = t("data/with_accounts");
+    return i(e, s, n)
 }), define("data/column_manager", ["require", "flight/lib/component"], function(t) {
     var e = t("flight/lib/component"),
         i = function() {
@@ -952,11 +1039,6 @@ function(t, e) {
                 var i = e.columnId,
                     s = e.action;
                 i && s && TD.controller.columnManager.move(i, s)
-            }, this.handleUiNeedsColumnOrder = function() {
-                var t = TD.controller.columnManager.getAllOrdered();
-                this.trigger("dataColumnOrder", {
-                    columns: t
-                })
             }, this.handleUiNeedsSerializedColumn = function(t, e) {
                 var i = TD.controller.columnManager.get(e.columnId),
                     s = {
@@ -971,10 +1053,151 @@ function(t, e) {
                     url: "https://tweetdeck.twitter.com/#column=" + TD.core.base64.encode(JSON.stringify(s))
                 })
             }, this.after("initialize", function() {
-                this.on(document, "uiDeleteColumnAction", this.deleteColumn), this.on(document, "uiMoveColumnAction", this.moveColumn), this.on(document, "uiNeedsColumnOrder", this.handleUiNeedsColumnOrder), this.on(document, "uiNeedsSerializedColumn", this.handleUiNeedsSerializedColumn)
+                this.on(document, "uiDeleteColumnAction", this.deleteColumn), this.on(document, "uiMoveColumnAction", this.moveColumn), this.on(document, "uiNeedsSerializedColumn", this.handleUiNeedsSerializedColumn)
             })
         };
     return e(i)
+}), define("data/with_twitter_api", ["flight/lib/compose", "data/with_client"], function(t, e) {
+    return function() {
+        t.mixin(this, [e]), this.after("initialize", function() {
+            this.attr.baseUrl = this.attr.baseUrl || TD.config.twitter_api_base, this.attr.apiVersion = this.attr.apiVersion || TD.config.twitter_api_version
+        }), this.wrapTwitterApiErrback = function(t) {
+            return function(e) {
+                var i = {
+                    request: t.request,
+                    response: e
+                };
+                "function" == typeof t.error ? t.error(i) : "string" == typeof t.error ? this.trigger(t.error, i) : this.trigger("dataTwitterApiError", {
+                    error: "Unknown error"
+                })
+            }.bind(this)
+        }, this.wrapTwitterApiCallback = function(t, e) {
+            return function(i) {
+                var s = {
+                    request: t.request,
+                    response: i
+                };
+                "function" == typeof t.success ? t.success(s) : "string" == typeof t.success ? this.trigger(t.success, s) : this.trigger("dataTwitterApiSuccess", s), t.processAsStreamData && e.processStreamData(i)
+            }.bind(this)
+        }, this.makeTwitterApiCall = function(t) {
+            t = t || {};
+            var e, i, s = this.getClientByAccountKey(t.request.accountKey),
+                n = this.wrapTwitterApiErrback(t, s),
+                o = this.wrapTwitterApiCallback(t, s);
+            e = this.withTwitterApiUrl(t), i = t.method || "GET";
+            try {
+                return s.makeTwitterCall(e, t.params, i, t.dataProcessor, o, n, t.feedType)
+            } catch (r) {
+                n()
+            }
+        }, this.makeTwitterRequest = function(t, e, i) {
+            var s = this.getClientByAccountKey(t),
+                n = this.withTwitterApiUrl({
+                    resource: e
+                });
+            return s.request(n, i)
+        }, this.withTwitterApiUrl = function(t) {
+            var e = [];
+            return e.push(t.baseUrl || this.attr.baseUrl), e.push(t.apiVersion || this.attr.apiVersion), e.push(t.resource), e.join("/")
+        }
+    }
+}), define("data/contributors", ["require", "flight/lib/component", "data/with_accounts", "data/with_twitter_api"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            baseUrl: "https://api-staging132.smf1.twitter.com"
+        }), this.after("initialize", function() {
+            this.on(document, "uiNeedsContributees", this.handleUiNeedsContributees), this.on(document, "uiRemoveContributee", this.handleUiRemoveContributee), this.on(document, "uiNeedsContributors", this.handleUiNeedsContributors), this.on(document, "uiContributorAction", this.handleUiContributorAction)
+        }), this.triggerResult = function(t, e, i) {
+            this.trigger(t, {
+                request: e,
+                response: i
+            })
+        }, this.handleUiNeedsContributees = function(t, e) {
+            var i = this.makeTwitterRequest(e.accountKey, "users/contributees.json", {});
+            i.addCallback(function(t) {
+                var i = t.data.map(function(t) {
+                    return {
+                        id: t.user.id_str,
+                        isAdmin: !! t.admin
+                    }
+                });
+                this.trigger("dataContributees", {
+                    accountKey: e.accountKey,
+                    contributees: i
+                })
+            }.bind(this))
+        }, this.handleUiRemoveContributee = function(t, e) {
+            var i = this.makeTwitterRequest(e.accountKey, "users/contributees/destroy.json", {
+                method: "POST",
+                params: {
+                    user_id: e.userId
+                }
+            });
+            i.addCallbacks(this.triggerResult.bind(this, "dataContributeeRemoveSuccess", e), this.triggerResult.bind(this, "dataContributeeRemoveError", e))
+        }, this.handleUiNeedsContributors = function(t, e) {
+            var i = this.makeTwitterRequest(e.accountKey, "users/contributors.json", {});
+            i.addCallback(function(t) {
+                var i = this.processContributorsData(t.data, e.accountKey);
+                this.trigger("dataContributors", {
+                    accountKey: e.accountKey,
+                    contributors: i
+                })
+            }.bind(this)), i.addErrback(this.triggerResult.bind(this, "dataContributorsError", e))
+        }, this.processContributorsData = function(t, e) {
+            var i = this.getAccount(e);
+            return t.map(function(t) {
+                return {
+                    user: new TD.services.TwitterUser(i).fromJSONObject(t.user),
+                    isAdmin: t.admin
+                }
+            })
+        }, this.handleUiContributorAction = function(t, e) {
+            var i;
+            e.userId ? i = TD.core.defer.succeed() : (i = TD.cache.twitterUsers.getByScreenName(e.screenName), i.addCallback(function(t) {
+                e.userId = t.id
+            })), i.addCallback(this.performContributorAction.bind(this, e)), i.addCallbacks(this.triggerResult.bind(this, "dataContributorActionSuccess", e), this.triggerResult.bind(this, "dataContributorActionError", e))
+        }, this.updateContributor = function(t) {
+            var e = this.makeTwitterRequest(t.accountKey, "users/contributors/update.json", {
+                method: "POST",
+                params: {
+                    user_id: t.userId,
+                    admin: !! t.isAdmin
+                }
+            });
+            return e.addCallback(function(e) {
+                var i = this.processContributorsData(e.data, t.accountKey);
+                return this.trigger("dataContributor", {
+                    accountKey: t.accountKey,
+                    contributor: i[0]
+                }), e
+            }.bind(this)), e
+        }, this.removeContributor = function(t) {
+            return this.makeTwitterRequest(t.accountKey, "users/contributors/destroy.json", {
+                method: "POST",
+                params: {
+                    user_id: t.userId
+                }
+            })
+        }, this.performContributorAction = function(t) {
+            var e;
+            switch (t.action) {
+                case "add":
+                case "update":
+                    e = this.updateContributor(t);
+                    break;
+                case "remove":
+                    e = this.removeContributor(t);
+                    break;
+                default:
+                    e = TD.core.defer.fail()
+            }
+            return e
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("data/with_accounts"),
+        n = t("data/with_twitter_api");
+    return i(e, s, n)
 }), define("data/embed_timeline", ["flight/lib/component", "data/with_client"], function(t, e) {
     function i() {
         this.checkListSubscription = function(t, e, i) {
@@ -982,7 +1205,7 @@ function(t, e) {
                 n = {
                     id: s,
                     title: TD.i("Subscribe to this list?"),
-                    message: TD.i("To share this list, we need to subscribe you to it. Subscribe                        and share?"),
+                    message: [TD.i("To share this list, we need to subscribe you to it."), TD.i("Subscribe and share?")].join("\n"),
                     okLabel: TD.i("OK"),
                     cancelLabel: TD.i("Cancel")
                 }, o = function() {
@@ -1059,8 +1282,7 @@ function(t, e) {
 }), define("data/message_banner", ["flight/lib/component", "util/with_version_comparator"], function(t, e) {
     var i = function() {
         this.dismissMessage = function(t, e) {
-            var i = TD.settings.getIdsForSeenMessages();
-            i.push(e.id), TD.settings.setIdsForSeenMessages(i)
+            this.updateIdsForSeenMessages(), this.idsForSeenMessages.push(e.id), TD.settings.setIdsForSeenMessages(this.idsForSeenMessages)
         }, this.satisfiesPlatformRequirements = function(t) {
             if (t.target && t.target.platform) {
                 var e = TD.util.getAppEnv();
@@ -1071,13 +1293,16 @@ function(t, e) {
             return t.target && t.target.version ? this.appSatisfiesVersionRequirements(t.target.version) : !0
         }, this.hasNotBeenDismissed = function(t) {
             if (t.message) {
-                var e = TD.settings.getIdsForSeenMessages(),
-                    i = e.every(function(e) {
-                        return t.message.id !== e
-                    });
-                return i
+                this.updateIdsForSeenMessages();
+                var e = this.idsForSeenMessages.every(function(e) {
+                    return t.message.id !== e
+                });
+                return e
             }
             return !1
+        }, this.updateIdsForSeenMessages = function() {
+            var t = TD.settings.getIdsForSeenMessages();
+            this.idsForSeenMessages = _.union(this.idsForSeenMessages, t)
         }, this.handleMessages = function(t, e) {
             var i = e.messages;
             i && (i = i.filter(this.satisfiesPlatformRequirements, this), i = i.filter(this.satisfiesVersionRequirements, this), i = i.filter(this.hasNotBeenDismissed, this), i.length && this.trigger("dataMessage", i[0]))
@@ -1748,58 +1973,18 @@ function(t, e) {
         })
     };
     return t(e)
-}), define("data/account", ["flight/lib/component"], function(t) {
-    var e = function() {
-        this.handleReauthorizeTwitterAccount = function(t, e) {
-            TD.controller.clients.addClient("twitter", e.account, !0)
-        }, this.handleRemoveTwitterAccount = function(t, e) {
-            TD.controller.clients.removeClient(e.key)
-        }, this.after("initialize", function() {
-            this.on(document, "uiRemoveTwitterAccount", this.handleRemoveTwitterAccount), this.on(document, "uiReauthorizeTwitterAccount", this.handleReauthorizeTwitterAccount)
-        })
-    };
-    return t(e)
-}), define("data/with_twitter_api", ["flight/lib/compose", "data/with_client"], function(t, e) {
-    return function() {
-        t.mixin(this, [e]), this.defaultAttrs({
-            defaultBaseUrl: "https://api.twitter.com",
-            defaultApiVersion: "1.1"
-        }), this.wrapTwitterApiErrback = function(t) {
-            return function(e) {
-                var i = {
-                    request: t.request,
-                    response: e
-                };
-                "function" == typeof t.error ? t.error(i) : "string" == typeof t.error ? this.trigger(t.error, i) : this.trigger("dataTwitterApiError", {
-                    error: "Unknown error"
-                })
-            }.bind(this)
-        }, this.wrapTwitterApiCallback = function(t, e) {
-            return function(i) {
-                var s = {
-                    request: t.request,
-                    response: i
-                };
-                "function" == typeof t.success ? t.success(s) : "string" == typeof t.success ? this.trigger(t.success, s) : this.trigger("dataTwitterApiSuccess", s), t.processAsStreamData && e.processStreamData(i)
-            }.bind(this)
-        }, this.makeTwitterApiCall = function(t) {
-            t = t || {};
-            var e, i, s = [],
-                n = this.getClientByAccountKey(t.request.accountKey),
-                o = this.wrapTwitterApiErrback(t, n),
-                r = this.wrapTwitterApiCallback(t, n);
-            s.push(t.baseUrl || this.attr.defaultBaseUrl), s.push(t.apiVersion || this.attr.defaultApiVersion), s.push(t.resource), e = s.join("/"), i = t.method || "GET";
-            try {
-                n.makeTwitterCall(e, t.params, i, t.dataProcessor, r, o, t.feedType)
-            } catch (a) {
-                o()
-            }
-        }
-    }
-}), define("data/tweet", ["flight/lib/component", "data/with_twitter_api"], function(t, e) {
-    function i() {
+}), define("data/tweet", ["require", "flight/lib/component", "data/with_twitter_api"], function(t) {
+    function e() {
         this.defaultAttrs({
             resources: {
+                show: {
+                    method: "GET",
+                    url: "statuses/show/:id.json"
+                },
+                destroy: {
+                    method: "POST",
+                    url: "statuses/destroy/:id.json"
+                },
                 message: {
                     method: "POST",
                     url: "direct_messages/new.json"
@@ -1811,11 +1996,38 @@ function(t, e) {
                 tweet: {
                     method: "POST",
                     url: "statuses/update.json"
+                },
+                retweet: {
+                    method: "POST",
+                    url: "statuses/retweet/:id.json"
                 }
             }
         }), this.after("initialize", function() {
-            this.on(document, "uiSendTweet", this.handleSendTweet)
-        }), this.sendTweet = function(t) {
+            this.on(document, "uiSendTweet", this.handleSendTweet), this.on(document, "uiRetweet", this.handleRetweet), this.on(document, "uiUndoRetweet", this.handleUndoRetweet)
+        }), this.getTweet = function(t) {
+            var e, i = new TD.core.defer.Deferred;
+            try {
+                e = this.attr.resources.show, this.makeTwitterApiCall({
+                    request: {
+                        accountKey: t.accountKey
+                    },
+                    params: t.params,
+                    resource: e.url.replace(":id", t.id),
+                    method: e.method,
+                    success: function(t) {
+                        i.callback(t)
+                    },
+                    error: function(t) {
+                        i.errback(t)
+                    }
+                })
+            } catch (s) {
+                i.errback({
+                    request: t
+                })
+            }
+            return i
+        }, this.sendTweet = function(t) {
             var e, i, s;
             try {
                 switch (e = this.attr.resources[t.type], t.type) {
@@ -1823,8 +2035,7 @@ function(t, e) {
                         i = {
                             text: t.text,
                             user_id: t.messageRecipient.userId,
-                            screen_name: t.messageRecipient.screenName,
-                            media_id: t.mediaId
+                            screen_name: t.messageRecipient.screenName
                         }, s = function(t) {
                             return {
                                 direct_message: t
@@ -1842,7 +2053,8 @@ function(t, e) {
                             status: t.text
                         }
                 }
-                this.makeTwitterApiCall({
+                var n = "message" === t.type ? "media_id" : "media_ids";
+                t.mediaId && (i[n] = t.mediaId), this.makeTwitterApiCall({
                     request: t,
                     resource: e.url,
                     method: e.method,
@@ -1852,21 +2064,323 @@ function(t, e) {
                     dataProcessor: s,
                     processAsStreamData: !0
                 })
-            } catch (n) {
+            } catch (o) {
                 this.trigger("dataTweetError", {
                     request: t
                 })
             }
+        }, this.sendRetweet = function(t, e) {
+            var i;
+            try {
+                i = this.attr.resources.retweet, this.makeTwitterApiCall({
+                    request: {
+                        accountKey: t
+                    },
+                    resource: i.url.replace(":id", e.id),
+                    method: i.method,
+                    success: "dataRetweetSuccess",
+                    error: "dataRetweetError",
+                    processAsStreamData: !0
+                })
+            } catch (s) {
+                this.trigger("dataRetweetError", {
+                    request: e
+                })
+            }
+        }, this.handleRetweet = function(t, e) {
+            e.from.forEach(function(t) {
+                this.sendRetweet(t, e)
+            }.bind(this))
+        }, this.handleUndoRetweet = function(t, e) {
+            var i = e.tweetId,
+                s = e.from,
+                n = this.getTweet({
+                    id: i,
+                    accountKey: s,
+                    params: {
+                        include_my_retweet: !0
+                    }
+                });
+            n.addCallback(function(t) {
+                var e;
+                return e = t.response.current_user_retweet ? this.destroyTweet({
+                    accountKey: s,
+                    tweetId: t.response.current_user_retweet.id_str
+                }) : TD.core.defer.succeed()
+            }.bind(this)), n.addCallbacks(function() {
+                $(document).trigger("dataUndoRetweetSuccess", {
+                    tweetId: i,
+                    from: s
+                })
+            }, function() {
+                $(document).trigger("dataUndoRetweetError", {
+                    tweetId: i,
+                    from: s
+                })
+            })
+        }, this.destroyTweet = function(t) {
+            var e, i = new TD.core.defer.Deferred;
+            try {
+                e = this.attr.resources.destroy, this.makeTwitterApiCall({
+                    request: {
+                        accountKey: t.accountKey
+                    },
+                    resource: e.url.replace(":id", t.tweetId),
+                    method: e.method,
+                    success: function(t) {
+                        i.callback(t)
+                    },
+                    error: function(t) {
+                        i.errback(t)
+                    }
+                })
+            } catch (s) {
+                i.errback({
+                    request: t
+                })
+            }
+            return i
         }, this.handleSendTweet = function(t, e) {
             e.file || this.sendTweet(e)
         }
     }
-    return t(i, e)
-}), define("ui/login/with_xauth_errors", [], function() {
+    var i = t("flight/lib/component"),
+        s = t("data/with_twitter_api");
+    return i(e, s)
+}), define("data/with_media_uploader", ["require", "flight/lib/compose", "data/with_twitter_api"], function(t) {
+    function e() {
+        i.mixin(this, [s]), this.defaultAttrs({
+            apiRoot: TD.config.api_root,
+            uploadUrl: "/oauth/upload"
+        }), this.withMediaUploaderUpload = function(t, e) {
+            if (t = t || {}, !t.file) throw new Error("Missing file to upload.");
+            if (!t.accountKey) throw new Error("Missing account key to upload with.");
+            e = _.defaults(e || {}, {
+                ttl: "ephemeral"
+            });
+            var i = this.getClientByAccountKey(t.accountKey),
+                s = i.oauth.account,
+                n = new FormData;
+            n.append("media", t.file), n.append("ttl", e.ttl);
+            var o = TD.net.ajax.upload(this.attr.apiRoot + this.attr.uploadUrl, n, s);
+            return o.addCallback(function(t) {
+                if (t = t || {}, t.data = t.data || {}, "string" != typeof t.data.media_id_string) throw new Error("Upload response missing media_id_string.");
+                return t.data.media_id_string
+            }), o
+        }
+    }
+    var i = t("flight/lib/compose"),
+        s = t("data/with_twitter_api");
+    return e
+}), define("ui/with_template", [], function() {
+    function t() {
+        this.render = function(t, e) {
+            this.$node.html(this.toHtml(t, e))
+        }, this.renderTemplate = function(t, e) {
+            return $(TD.ui.template.render(t, e))
+        }, this.toHtml = function(t, e) {
+            return TD.ui.template.render(t, e)
+        }, this.toHtmlFromRaw = function(t, e) {
+            var i = Hogan.compile(t);
+            return i.render(e)
+        }
+    }
+    return t
+}), define("util/with_watch_decider", [], function() {
+    function t() {
+        this.before("initialize", function() {
+            this.watchedDeciders = {}
+        }), this.after("initialize", function() {
+            this.on(document, "dataDeciderUpdated", this.handleDecidersChanged)
+        }), this.watchDecider = function(t, e) {
+            if ("string" != typeof t) throw new TypeError("watchDecider decider key list must be a string");
+            if ("function" != typeof e) throw new TypeError("watchDecider callback must be a function");
+            t.split(" ").forEach(function(t) {
+                this.watchedDeciders[t] = this.watchedDeciders[t] || {
+                    value: this.getDecider(t)
+                }, this.watchedDeciders[t].callback = e
+            }.bind(this))
+        }, this.handleDecidersChanged = function() {
+            Object.keys(this.watchedDeciders).forEach(function(t) {
+                var e = this.watchedDeciders[t],
+                    i = e.value,
+                    s = this.getDecider(t);
+                i !== s && (e.value = s, e.callback.call(this, s, i, t))
+            }.bind(this))
+        }, this.getDecider = function(t) {
+            return TD.decider.get(TD.decider[t])
+        }
+    }
+    return t
+}), define("data/schedule_tweet", ["require", "flight/lib/component", "data/with_twitter_api", "data/with_media_uploader", "ui/with_template", "util/with_watch_decider"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            resources: {
+                tweet: {
+                    method: "POST",
+                    url: "schedule/status/tweet.json",
+                    metricsKey: "status:tweet"
+                },
+                "delete": {
+                    method: "DELETE",
+                    url: "schedule/status/{{id}}.json",
+                    metricsKey: "status:delete"
+                },
+                dismiss: {
+                    method: "POST",
+                    url: "schedule/status/dismiss/{{id}}.json",
+                    metricsKey: "status:dismiss"
+                },
+                edit: {
+                    method: "PUT",
+                    url: "schedule/status/{{id}}.json",
+                    metricsKey: "status:edit"
+                }
+            }
+        }), this.after("initialize", function() {
+            this.on(document, "uiSendScheduledTweets", this.handleSendScheduleTweets), this.on(document, "uiDeleteScheduledTweetGroup", this.handleDeleteScheduledTweets), this.on(document, "uiEditScheduledTweetGroup", this.handleEditScheduleTweets), this.watchDecider("SCHEDULER_READ_BACKGROUND SCHEDULER_READ_VISIBLE", this.refreshScheduledColumn)
+        }), this.handleSendScheduleTweets = function(t, e) {
+            e.metadata = e.metadata || {};
+            var i = e.requests.filter(function(t) {
+                return this.shouldSchedule(t.type)
+            }.bind(this)),
+                s = [],
+                n = [],
+                o = e.metadata.originalUpdates || [];
+            if (i.length || o.length) {
+                this.trigger("metricRealtime", {
+                    action: "scheduler:ui:send"
+                });
+                var r = i.map(function(t) {
+                    return t.accountKey
+                });
+                e.tokenToDelete && (o = []), o.forEach(function(t) {
+                    var e = r.indexOf(t.account.getKey());
+                    if (0 > e) return n.push(t);
+                    var o = i.splice(e, 1)[0];
+                    o.id = t.id, s.push(o), TD.controller.feedManager.deleteChirp(o.id)
+                });
+                var a = new TD.core.defer.DeferredList(i.map(this.uploadImageIfPresent.bind(this)));
+                a.addCallback(function(t) {
+                    var e = [].concat(t.map(function(t) {
+                        return t[1]
+                    }).map(this.makeApiCallToResource.bind(this, this.attr.resources.tweet)), s.map(this.makeApiCallToResource.bind(this, this.attr.resources.edit)), n.map(function(t) {
+                        return this.deleteScheduledTweet({
+                            id: t.id,
+                            accountKey: t.account.getKey()
+                        })
+                    }, this));
+                    return new TD.core.defer.DeferredList(e)
+                }.bind(this)), a.addBoth(this.addOrRefreshScheduledColumn.bind(this))
+            }
+        }, this.handleDeleteScheduledTweets = function(t, e) {
+            if (!this.isVisibilityOff()) {
+                this.trigger("metricRealtime", {
+                    action: "scheduler:ui:delete"
+                });
+                var i = new TD.core.defer.DeferredList(e.scheduledTweetGroup.updates.map(function(t) {
+                    return this.deleteScheduledTweet({
+                        id: t.id,
+                        state: t.state,
+                        accountKey: t.account.getKey()
+                    })
+                }.bind(this)));
+                i.addBoth(this.refreshScheduledColumn.bind(this))
+            }
+        }, this.handleEditScheduleTweets = function(t, e) {
+            if (this.isWriteOff()) return alert(TD.i("Sorry – editing scheduled tweets is currently unavailable."));
+            this.trigger("metricRealtime", {
+                action: "scheduler:ui:edit"
+            });
+            var i = e.scheduledTweetGroup;
+            this.trigger("uiComposeTweet", {
+                type: "tweet",
+                schedule: {
+                    time: i.time
+                },
+                text: i.text,
+                from: i.updates.map(function(t) {
+                    return t.account.getKey()
+                }),
+                inReplyTo: {
+                    tweetId: status.inReplyToStatusId
+                },
+                metadata: {
+                    originalUpdates: i.updates
+                }
+            })
+        }, this.makeApiCallToResource = function(t, e) {
+            this.trigger("metricRealtime", {
+                action: "scheduler:data:" + t.metricsKey
+            });
+            var i = {
+                status: e.text,
+                execute_at: Math.round(e.scheduledDate.getTime() / 1e3)
+            };
+            return e.inReplyToStatusId && (i.in_reply_to_status_id = e.inReplyToStatusId), e.mediaId && (i.media_ids = e.mediaId), this.makeTwitterApiCall({
+                resource: this.toHtmlFromRaw(t.url, e),
+                method: t.method,
+                request: e,
+                params: i,
+                success: "dataTweetSent",
+                error: "dataTweetError"
+            })
+        }, this.deleteScheduledTweet = function(t) {
+            var e = this.attr.resources["failed" === t.state ? "dismiss" : "delete"];
+            return this.trigger("metricRealtime", {
+                action: "scheduler:data:" + e.metricsKey
+            }), this.makeTwitterApiCall({
+                resource: this.toHtmlFromRaw(e.url, {
+                    id: t.id
+                }),
+                request: t,
+                method: e.method
+            })
+        }, this.uploadImageIfPresent = function(t) {
+            if (!t.file) return TD.core.defer.succeed(t);
+            this.trigger("metricRealtime", {
+                action: "scheduler:data:upload"
+            });
+            var e = this.withMediaUploaderUpload(t, {
+                ttl: "infinity"
+            });
+            return e.addCallback(function(e) {
+                return delete t.file, t.mediaId = e, t
+            }), e
+        }, this.refreshScheduledColumn = function() {
+            this.trigger("uiNeedsScheduledColumnVisible", {})
+        }, this.addOrRefreshScheduledColumn = function() {
+            this.trigger("uiNeedsScheduledColumnVisible", {
+                allowAdd: !0
+            })
+        }, this.isWriteOff = function() {
+            var t = !TD.decider.hasAccessLevel("scheduler", "WRITE");
+            return t
+        }, this.isVisibilityOff = function() {
+            var t = !TD.decider.hasAccessLevel("scheduler", "READ_VISIBLE");
+            return t
+        }, this.shouldSchedule = function(t) {
+            var e = !this.isWriteOff(),
+                i = {
+                    message: !1,
+                    tweet: e,
+                    reply: e
+                };
+            return i[t]
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("data/with_twitter_api"),
+        n = t("data/with_media_uploader"),
+        o = t("ui/with_template"),
+        r = t("util/with_watch_decider");
+    return i(e, s, n, o, r)
+}), define("ui/with_api_errors", [], function() {
     return function() {
-        var t = "unknown";
+        var t = "unknown",
+            e = "unknown_xauth";
         this.after("initialize", function() {
-            this.xAuthErrors = {
+            this.apiErrors = {
                 32: TD.i("Invalid username or password"),
                 231: TD.i("You need to generate a temporary password on twitter.com to sign in."),
                 235: TD.i("Your login verification request has expired. Please sign in again."),
@@ -1877,24 +2391,26 @@ function(t, e) {
                 244: TD.i("You must reset the password on this account. Please sign in on twitter.com to do this."),
                 245: TD.i("You have initiated too many login requests. Please try sigining in again in an hour."),
                 246: TD.i("You have entered too many incorrect codes. Please try signing in again."),
+                276: TD.i("Scheduled tweet was rejected. Please try again."),
                 429: TD.i("You have initiated too many login requests. Please try sigining in again later."),
-                unknown: TD.i("Unknown sign in error. Please try again.")
+                unknown_xauth: TD.i("Unknown sign in error. Please try again."),
+                unknown: TD.i("Unknown error. Please try again.")
             }
-        }), this.getXAuthErrorMessage = function(e) {
-            return e = e ? e.toString() : t, this.xAuthErrors[e] || this.xAuthErrors[t]
+        }), this.getXAuthErrorMessage = function(t) {
+            return t = t ? t.toString() : e, this.apiErrors[t] || this.apiErrors[e]
+        }, this.getApiErrorMessage = function(e) {
+            return e = e || {}, this.apiErrors[e.code] || e.message || this.apiErrors[t]
         }, this.getXAuthErrorIs2FACodeError = function(t) {
             return 236 === t
         }
     }
-}), define("data/tweetdeck_api", ["require", "flight/lib/component", "data/with_client", "ui/login/with_xauth_errors"], function(t) {
+}), define("data/tweetdeck_api", ["require", "flight/lib/component", "data/with_client", "data/with_media_uploader", "ui/with_api_errors"], function(t) {
     function e() {
         var t = 1,
             e = 2,
-            i = 32;
+            i = 32,
+            s = 253;
         this.defaultAttrs({
-            apiRoot: TD.config.api_root,
-            proxyMediaUploadUrl: "/oauth/media/twitter",
-            twoStageUploadUrl: "/oauth/upload",
             mobileAuthRequestLimit: 60,
             mobile2FAPollInterval: 2e3
         }), this.mobileAuthRequestCount = 0, this.after("initialize", function() {
@@ -1910,59 +2426,58 @@ function(t, e) {
             }.bind(this)
         }, this.handleSendTweet = function(t, e) {
             if (e.file) {
-                var i, s = this.getClientByAccountKey(e.accountKey),
-                    n = this.attr.proxyMediaUploadUrl,
-                    o = this.responseFactory("dataTweetSent", e),
-                    r = "media[]",
-                    a = s.oauth.account,
-                    c = new FormData;
-                switch (e.type) {
-                    case "reply":
-                        c.append("status", e.text), c.append("in_reply_to_status_id", e.inReplyToStatusId);
-                        break;
-                    case "tweet":
-                        c.append("status", e.text);
-                        break;
-                    case "message":
-                        n = this.attr.twoStageUploadUrl, r = "media", o = function(i) {
-                            delete e.file, e.mediaId = i.data.media_id_string, this.trigger(document, t, e)
-                        }.bind(this)
-                }
-                c.append(r, e.file), i = TD.net.ajax.upload(this.attr.apiRoot + n, c, a), i.addCallbacks(o, this.responseFactory("dataTweetError", e))
+                var i = this.withMediaUploaderUpload(e);
+                i.addCallbacks(function(i) {
+                    delete e.file, e.mediaId = i, this.trigger(document, t, e)
+                }.bind(this), this.responseFactory("dataTweetError", e))
             }
         }, this.handleSendScheduledUpdates = function(t, e) {
-            var i = this.getTweetDeckClient(),
-                s = e.requests.map(function(t) {
-                    var e = this.getAccountData(t.accountKey),
-                        i = {
-                            body: t.text
-                        };
-                    switch (t.type) {
-                        case "tweet":
-                            i.type = "tweet";
-                            break;
-                        case "reply":
-                            i.type = "tweet", i.in_reply_to_status_id = t.inReplyToStatusId;
-                            break;
-                        case "message":
-                            i.type = "direct_message", i.screen_name = t.messageRecipient.screenName
-                    }
-                    return {
-                        service: "twitter",
+            var i = e.requests.filter(function(t) {
+                return this.shouldSchedule(t.type)
+            }, this).map(function(t) {
+                var e = this.getAccountData(t.accountKey),
+                    i = {
+                        body: t.text
+                    };
+                switch (t.type) {
+                    case "tweet":
+                        i.type = "tweet";
+                        break;
+                    case "reply":
+                        i.type = "tweet", i.in_reply_to_status_id = t.inReplyToStatusId;
+                        break;
+                    case "message":
+                        i.type = "direct_message", i.screen_name = t.messageRecipient.screenName
+                }
+                return {
+                    service: "twitter",
+                    user: {
+                        id: e.id
+                    },
+                    update: i,
+                    meta: {
                         user: {
-                            id: e.id
-                        },
-                        update: i,
-                        meta: {
-                            user: {
-                                name: e.screenName,
-                                avatar_url: e.profileImageUrl
-                            }
+                            name: e.screenName,
+                            avatar_url: e.profileImageURL
                         }
                     }
-                }.bind(this)),
-                n = i.scheduleGroup(s, e.scheduledDate, e.tokenToDelete);
-            n.addCallbacks(this.responseFactory("dataScheduledTweetsSent", e), this.responseFactory("dataScheduledTweetsError", e))
+                }
+            }, this),
+                s = this.getTweetDeckClient(),
+                n = TD.core.defer.succeed();
+            e.tokenToDelete && ($(document).trigger("metricRealtime", {
+                action: "scheduler:data:susurrus:delete"
+            }), n.addCallback(function() {
+                return s.removeScheduleGroup(e.tokenToDelete)
+            })), i.length && ($(document).trigger("metricRealtime", {
+                action: "scheduler:data:susurrus:create"
+            }), n.addCallback(function() {
+                return s.scheduleGroup(i, e.scheduledDate)
+            }), n.addCallbacks(this.responseFactory("dataScheduledTweetsSent", e), this.responseFactory("dataScheduledTweetsError", e))), n.addBoth(function() {
+                $(document).trigger("uiNeedsScheduledColumnVisible", {
+                    allowAdd: !! i.length
+                })
+            })
         }, this.handleTwitterLoginRequest = function(t, e) {
             var i = TD.storage.accountController.loginTwitter(e.username, e.password);
             return i.addCallback(function(t) {
@@ -2028,25 +2543,25 @@ function(t, e) {
                 userId: e.userId
             }, e.code && (s.code = e.code), i = TD.storage.accountController.loginTwitterWith2FACode(e.username, e.password, s), i.addCallback(function(t) {
                 this.handleLoginResponse(e, t)
-            }.bind(this)), i) : void TD.sync.util.errmark("Undefined 2FA login request.")
-        }, this.handleLoginResponse = function(s, n) {
-            s = s || {}, n.staySignedIn = s.staySignedIn, n.username = s.username, n.password = s.password, 200 === n.httpStatus ? n.account.uid ? this.trigger("dataLoginAuthSuccess", n) : n.xAuth.login_verification_request_type === t ? (TD.sync.util.verboseLog("Twogin: Awaiting 2FA code from SMS"), this.trigger("dataLoginTwoFactorCodeRequired", n)) : n.xAuth.login_verification_request_type === e ? (TD.sync.util.verboseLog("Twogin: Awaiting 2FA auth from mobile app"), this.schedule2FARequest({
-                username: n.username,
-                password: n.password,
-                requestId: n.xAuth.login_verification_request_id,
-                userId: n.xAuth.login_verification_user_id,
-                staySignedIn: n.staySignedIn
+            }.bind(this)), i) : (TD.sync.util.errmark("Undefined 2FA login request."), void 0)
+        }, this.handleLoginResponse = function(n, o) {
+            n = n || {}, o.staySignedIn = n.staySignedIn, o.username = n.username, o.password = n.password, 200 === o.httpStatus ? o.account.uid ? this.trigger("dataLoginAuthSuccess", o) : o.xAuth.login_verification_request_type === t ? (TD.sync.util.verboseLog("Twogin: Awaiting 2FA code from SMS"), this.trigger("dataLoginTwoFactorCodeRequired", o)) : o.xAuth.login_verification_request_type === e ? (TD.sync.util.verboseLog("Twogin: Awaiting 2FA auth from mobile app"), this.schedule2FARequest({
+                username: o.username,
+                password: o.password,
+                requestId: o.xAuth.login_verification_request_id,
+                userId: o.xAuth.login_verification_user_id,
+                staySignedIn: o.staySignedIn
             }), this.trigger("dataLoginTwoFactorAwaitingConfirmation")) : this.trigger("dataLoginError", {
                 isXAuth: !0
-            }) : 401 === n.httpStatus && n.xAuth.errors && n.xAuth.errors.length > 0 ? n.xAuth.errors[0].code === i && s.requestId ? this.schedule2FARequest(s) : this.getXAuthErrorIs2FACodeError(n.xAuth.errors[0].code) ? this.trigger("dataLogin2FAError", {
+            }) : 401 === o.httpStatus && o.xAuth.errors && o.xAuth.errors.length > 0 ? [i, s].indexOf(o.xAuth.errors[0].code) > -1 && n.requestId ? this.schedule2FARequest(n) : this.getXAuthErrorIs2FACodeError(o.xAuth.errors[0].code) ? this.trigger("dataLogin2FAError", {
                 isXAuth: !0,
-                code: n.xAuth.errors[0].code
+                code: o.xAuth.errors[0].code
             }) : this.trigger("dataLoginError", {
                 isXAuth: !0,
-                code: n.xAuth.errors[0].code
-            }) : 500 === n.httpStatus ? this.trigger("dataLoginServerError") : this.trigger("dataLoginError", {
+                code: o.xAuth.errors[0].code
+            }) : 500 === o.httpStatus ? this.trigger("dataLoginServerError") : this.trigger("dataLoginError", {
                 isXAuth: !0,
-                httpStatus: n.httpStatus
+                httpStatus: o.httpStatus
             })
         }, this.schedule2FARequest = function(t) {
             this.mobileAuthRequestCount < this.attr.mobileAuthRequestLimit ? (TD.sync.util.verboseLog("Twogin: Scheduling mobile 2FA check"), this.mobileAuthRequestTimeout = setTimeout(function() {
@@ -2054,12 +2569,23 @@ function(t, e) {
             }.bind(this), this.attr.mobile2FAPollInterval)) : this.trigger("dataLogin2FATimeout", t)
         }, this.handleLogin2FACancel = function() {
             clearTimeout(this.mobileAuthRequestTimeout)
+        }, this.isTweetSchedulerOn = function() {
+            return TD.decider.hasAccessLevel("scheduler", "WRITE")
+        }, this.shouldSchedule = function(t) {
+            var e = this.isTweetSchedulerOn(),
+                i = {
+                    message: !0,
+                    tweet: !e,
+                    reply: !e
+                };
+            return i[t]
         }
     }
     var i = t("flight/lib/component"),
         s = t("data/with_client"),
-        n = t("ui/login/with_xauth_errors");
-    return i(e, s, n)
+        n = t("data/with_media_uploader"),
+        o = t("ui/with_api_errors");
+    return i(e, s, n, o)
 }), define("data/touch_controller", ["flight/lib/component"], function(t) {
     var e = function() {
         this.defaultAttrs({
@@ -2070,7 +2596,7 @@ function(t, e) {
             withTouchSidebarClass: "with-touch-sidebar",
             withTouchFontSizeClass: "with-touch-font-size"
         }), this.handleUpdateCompose = function() {
-            TD.util.isTouchDevice() && TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) ? $(".js-new-compose").addClass(this.attr.isTouchComposeClass) : $(".js-new-compose").removeClass(this.attr.isTouchComposeClass)
+            TD.util.isTouchDevice() && TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) ? $(".js-docked-compose").addClass(this.attr.isTouchComposeClass) : $(".js-docked-compose").removeClass(this.attr.isTouchComposeClass)
         }, this.handleUpdateFontSize = function() {
             TD.util.isTouchDevice() && TD.decider.get(TD.decider.TOUCHDECK_FONTSIZE) ? $("html").addClass(this.attr.withTouchFontSizeClass) : $("html").removeClass(this.attr.withTouchFontSizeClass)
         }, this.handleUpdateSearch = function() {
@@ -2211,10 +2737,12 @@ function(t, e) {
             this.on(document, "uiMigrateActive", this.handleUiMigrateActive), this.on(document, "uiNeedsMigrateData", this.handleUiNeedsMigrateData), this.on(document, "uiNeedsMigratePreviewData", this.handleUiNeedsMigratePreviewData), this.on(document, "uiMigrateTweetDeckData", this.handleMigrateTweetDeckData), this.on(document, "uiMigrateTwitterData", this.handleMigrateTwitterData), this.on(document, "uiMigrateSuccess", this.handleMigrateSuccess), this.on(document, "uiMigrateCancel", this.handleMigrateCancel);
             var t = this.getMigrateData();
             t && t.active && t.email && TD.controller.stats.setUid(t.email)
-        }), this.handleUiMigrateActive = function() {
+        }), this.handleUiMigrateActive = function(t, e) {
             this.setMigrateData({
                 active: !0,
-                email: TD.storage.store.getTweetdeckAccount()
+                email: TD.storage.store.getTweetdeckAccount(),
+                accountType: e.accountType,
+                userHasAccountAuthority: e.userHasAccountAuthority
             })
         }, this.handleUiNeedsMigrateData = function() {
             this.trigger("dataMigrateData", this.getMigrateData())
@@ -2229,10 +2757,10 @@ function(t, e) {
             }), this.setMigrateData(i)
         }, this.handleMigrateTweetDeckData = function(t, e) {
             var i = this.getMigrateData();
-            i = _.extend({}, i, {
+            i = _.defaults({}, {
                 email: e.email,
                 passhash: e.passhash
-            }), this.setMigrateData(i)
+            }, i), this.setMigrateData(i)
         }, this.handleMigrateSuccess = function() {
             this.clearMigrateData(), TD.sync.controller.ueberpull()
         }, this.handleMigrateCancel = function(t, e) {
@@ -2318,19 +2846,19 @@ function(t, e) {
             s = i ? e.strip(s) : s, g.isBuild && (m[t] = s), n(s)
         },
         load: function(t, i, s, n) {
-            if (n.isBuild && !n.inlineText) return void s();
+            if (n.isBuild && !n.inlineText) return s(), void 0;
             g.isBuild = n.isBuild;
             var o = e.parseName(t),
                 r = o.moduleName + (o.ext ? "." + o.ext : ""),
                 a = i.toUrl(r),
                 c = g.useXhr || e.useXhr;
-            return 0 === a.indexOf("empty:") ? void s() : void(!h || c(a, l, u, d) ? e.get(a, function(i) {
+            return 0 === a.indexOf("empty:") ? (s(), void 0) : (!h || c(a, l, u, d) ? e.get(a, function(i) {
                 e.finishLoad(t, o.strip, i, s)
             }, function(t) {
                 s.error && s.error(t)
             }) : i([r], function(t) {
                 e.finishLoad(o.moduleName + "." + o.ext, o.strip, t, s)
-            }))
+            }), void 0)
         },
         write: function(t, i, s) {
             if (m.hasOwnProperty(i)) {
@@ -2390,7 +2918,7 @@ function(t, e) {
         }
     }), e
 }), define("text!scripts/schema/shared_column.json", [], function() {
-    return '{\n    "properties": {\n        "feeds": {\n            "items": {\n                "required": ["accountkey", "metadata", "mtime", "service", "type"],\n                "properties": {\n                    "accountkey": {\n                        "type": "string"\n                    },\n                    "metadata": {\n                        "required": ["baseQuery", "searchFilterData", "term"],\n                        "properties": {\n                            "baseQuery": {\n                                "type": "string"\n                            },\n                            "searchFilterData": {\n                                "required": ["action", "content", "engagement", "user"],\n                                "properties": {\n                                    "action": {\n                                        "properties": {\n                                            "showFavorites": {\n                                                "type": "boolean"\n                                            },\n                                            "showFollowers": {\n                                                "type": "boolean"\n                                            },\n                                            "showLists": {\n                                                "type": "boolean"\n                                            },\n                                            "showMentions": {\n                                                "type": "boolean"\n                                            },\n                                            "showRetweets": {\n                                                "type": "boolean"\n                                            }\n                                        },\n                                        "type": "object"\n                                    },\n                                    "content": {\n                                        "properties": {\n                                            "excluding": {\n                                                "type": "string"\n                                            },\n                                            "includeRTs": {\n                                                "type": "boolean"\n                                            },\n                                            "lang": {\n                                                "type": "string"\n                                            },\n                                            "matching": {\n                                                "type": "string"\n                                            },\n                                            "type": {\n                                                "type": "string"\n                                            }\n                                        },\n                                        "type": "object"\n                                    },\n                                    "engagement": {\n                                        "properties": {\n                                            "minFavorites": {\n                                                "type": "number"\n                                            },\n                                            "minReplies": {\n                                                "type": "number"\n                                            },\n                                            "minRetweets": {\n                                                "type": "number"\n                                            }\n                                        },\n                                        "type": "object"\n                                    },\n                                    "user": {\n                                        "properties": {\n                                            "from_name": {\n                                                "type": "string"\n                                            },\n                                            "from_type": {\n                                                "type": "string"\n                                            },\n                                            "mention_name": {\n                                                "type": "string"\n                                            }\n                                        },\n                                        "type": "object"\n                                    }\n                                },\n                                "type": "object"\n                            },\n                            "term": {\n                                "type": "string"\n                            }\n                        },\n                        "type": "object"\n                    },\n                    "mtime": {\n                        "type": "string"\n                    },\n                    "service": {\n                        "type": "string"\n                    },\n                    "type": {\n                        "type": "string"\n                    }\n                },\n                "type": "object"\n            },\n            "type": "array"\n        },\n        "filters": {\n            "properties": {\n                "action": {\n                    "properties": {\n                        "showFavorites": {\n                            "type": "boolean"\n                        },\n                        "showFollowers": {\n                            "type": "boolean"\n                        },\n                        "showLists": {\n                            "type": "boolean"\n                        },\n                        "showMentions": {\n                            "type": "boolean"\n                        },\n                        "showRetweets": {\n                            "type": "boolean"\n                        }\n                    },\n                    "type": "object"\n                },\n                "content": {\n                    "properties": {\n                        "excluding": {\n                            "type": "string"\n                        },\n                        "includeRTs": {\n                            "type": "boolean"\n                        },\n                        "lang": {\n                            "type": "string"\n                        },\n                        "matching": {\n                            "type": "string"\n                        },\n                        "type": {\n                            "type": "string"\n                        }\n                    },\n                    "type": "object"\n                },\n                "engagement": {\n                    "properties": {\n                        "minFavorites": {\n                            "type": "number"\n                        },\n                        "minReplies": {\n                            "type": "number"\n                        },\n                        "minRetweets": {\n                            "type": "number"\n                        }\n                    },\n                    "type": "object"\n                },\n                "user": {\n                    "properties": {\n                        "from_name": {\n                            "type": "string"\n                        },\n                        "from_type": {\n                            "type": "string"\n                        }\n                    },\n                    "type": "object"\n                }\n            },\n            "type": "object"\n        }\n    },\n    "required": ["feeds", "filters"],\n    "type": "object"\n}\n'
+    return '{\n    "properties": {\n        "feeds": {\n            "items": {\n                "required": ["accountkey", "metadata", "mtime", "service", "type"],\n                "properties": {\n                    "accountkey": {\n                        "type": "string"\n                    },\n                    "metadata": {\n                        "required": ["baseQuery", "searchFilterData", "term"],\n                        "properties": {\n                            "baseQuery": {\n                                "type": "string"\n                            },\n                            "searchFilterData": {\n                                "required": ["action", "content", "engagement", "user"],\n                                "properties": {\n                                    "action": {\n                                        "properties": {\n                                            "showFavorites": {\n                                                "type": "boolean"\n                                            },\n                                            "showFollowers": {\n                                                "type": "boolean"\n                                            },\n                                            "showLists": {\n                                                "type": "boolean"\n                                            },\n                                            "showMentions": {\n                                                "type": "boolean"\n                                            },\n                                            "showRetweets": {\n                                                "type": "boolean"\n                                            }\n                                        },\n                                        "type": "object"\n                                    },\n                                    "content": {\n                                        "properties": {\n                                            "excluding": {\n                                                "type": "string"\n                                            },\n                                            "includeRTs": {\n                                                "type": "boolean"\n                                            },\n                                            "lang": {\n                                                "type": "string"\n                                            },\n                                            "matching": {\n                                                "type": "string"\n                                            },\n                                            "type": {\n                                                "type": "string"\n                                            }\n                                        },\n                                        "type": "object"\n                                    },\n                                    "engagement": {\n                                        "properties": {\n                                            "minFavorites": {\n                                                "type": "number"\n                                            },\n                                            "minReplies": {\n                                                "type": "number"\n                                            },\n                                            "minRetweets": {\n                                                "type": "number"\n                                            }\n                                        },\n                                        "type": "object"\n                                    },\n                                    "user": {\n                                        "properties": {\n                                            "from_name": {\n                                                "type": ["string", "null"]\n                                            },\n                                            "from_type": {\n                                                "type": ["string", "null"]\n                                            },\n                                            "mention_name": {\n                                                "type": ["string", "null"]\n                                            }\n                                        },\n                                        "type": "object"\n                                    }\n                                },\n                                "type": "object"\n                            },\n                            "term": {\n                                "type": "string"\n                            }\n                        },\n                        "type": "object"\n                    },\n                    "mtime": {\n                        "type": "string"\n                    },\n                    "service": {\n                        "type": "string"\n                    },\n                    "type": {\n                        "type": "string"\n                    }\n                },\n                "type": "object"\n            },\n            "type": "array"\n        },\n        "filters": {\n            "properties": {\n                "action": {\n                    "properties": {\n                        "showFavorites": {\n                            "type": "boolean"\n                        },\n                        "showFollowers": {\n                            "type": "boolean"\n                        },\n                        "showLists": {\n                            "type": "boolean"\n                        },\n                        "showMentions": {\n                            "type": "boolean"\n                        },\n                        "showRetweets": {\n                            "type": "boolean"\n                        }\n                    },\n                    "type": "object"\n                },\n                "content": {\n                    "properties": {\n                        "excluding": {\n                            "type": "string"\n                        },\n                        "includeRTs": {\n                            "type": "boolean"\n                        },\n                        "lang": {\n                            "type": "string"\n                        },\n                        "matching": {\n                            "type": "string"\n                        },\n                        "type": {\n                            "type": "string"\n                        }\n                    },\n                    "type": "object"\n                },\n                "engagement": {\n                    "properties": {\n                        "minFavorites": {\n                            "type": "number"\n                        },\n                        "minReplies": {\n                            "type": "number"\n                        },\n                        "minRetweets": {\n                            "type": "number"\n                        }\n                    },\n                    "type": "object"\n                },\n                "user": {\n                    "properties": {\n                        "from_name": {\n                            "type": ["string", "null"]\n                        },\n                        "from_type": {\n                            "type": ["string", "null"]\n                        }\n                    },\n                    "type": "object"\n                }\n            },\n            "type": "object"\n        }\n    },\n    "required": ["feeds", "filters"],\n    "type": "object"\n}\n'
 }), define("data/with_validation_schemata", ["require", "text!scripts/schema/shared_column.json"], function(t) {
     var e = {
         sharedColumn: t("text!scripts/schema/shared_column.json")
@@ -2619,34 +3147,34 @@ function() {
                 return s
             }
         }, u = function(t, e, o, r) {
-            var a, c, d, m, g, p, f, w, C, T, v = !1,
-                S = {}, y = e.length - 1,
-                b = e[y],
-                _ = o.length - 1,
-                D = o[_].object,
-                A = o[_].key,
-                I = D[A];
-            if (b.hasOwnProperty("$ref")) return e = h(t, e, b.$ref), e ? u(t, e, o, r) : {
-                $ref: b.$ref
+            var a, c, d, m, g, p, f, w, C, T, S = !1,
+                v = {}, b = e.length - 1,
+                y = e[b],
+                D = o.length - 1,
+                _ = o[D].object,
+                A = o[D].key,
+                I = _[A];
+            if (y.hasOwnProperty("$ref")) return e = h(t, e, y.$ref), e ? u(t, e, o, r) : {
+                $ref: y.$ref
             };
-            if (b.hasOwnProperty("type"))
-                if ("string" == typeof b.type) {
-                    if (r.useCoerce && t.coerceType.hasOwnProperty(b.type) && (I = D[A] = t.coerceType[b.type](I)), !t.fieldType[b.type](I)) return {
-                        type: b.type
+            if (y.hasOwnProperty("type"))
+                if ("string" == typeof y.type) {
+                    if (r.useCoerce && t.coerceType.hasOwnProperty(y.type) && (I = _[A] = t.coerceType[y.type](I)), !t.fieldType[y.type](I)) return {
+                        type: y.type
                     }
                 } else {
-                    for (v = !0, a = 0, c = b.type.length; c > a && v; a++) t.fieldType[b.type[a]](I) && (v = !1);
-                    if (v) return {
-                        type: b.type
+                    for (S = !0, a = 0, c = y.type.length; c > a && S; a++) t.fieldType[y.type[a]](I) && (S = !1);
+                    if (S) return {
+                        type: y.type
                     }
                 }
-            if (b.hasOwnProperty("allOf"))
-                for (a = 0, c = b.allOf.length; c > a; a++)
-                    if (w = u(t, e.concat(b.allOf[a]), o, r)) return w;
+            if (y.hasOwnProperty("allOf"))
+                for (a = 0, c = y.allOf.length; c > a; a++)
+                    if (w = u(t, e.concat(y.allOf[a]), o, r)) return w;
             if (r.useCoerce || r.useDefault || r.removeAdditional) {
-                if (b.hasOwnProperty("oneOf")) {
-                    for (a = 0, c = b.oneOf.length, d = 0; c > a; a++)
-                        if (new_stack = i(o), w = u(t, e.concat(b.oneOf[a]), new_stack, r)) S = w;
+                if (y.hasOwnProperty("oneOf")) {
+                    for (a = 0, c = y.oneOf.length, d = 0; c > a; a++)
+                        if (new_stack = i(o), w = u(t, e.concat(y.oneOf[a]), new_stack, r)) v = w;
                         else {
                             if (d += 1, d > 1) break;
                             s(new_stack, o)
@@ -2654,117 +3182,117 @@ function() {
                     if (d > 1) return {
                         oneOf: !0
                     };
-                    if (1 > d) return S;
-                    S = {}
+                    if (1 > d) return v;
+                    v = {}
                 }
-                if (b.hasOwnProperty("anyOf")) {
-                    for (a = 0, c = b.anyOf.length; c > a; a++)
-                        if (new_stack = i(o), w = u(t, e.concat(b.anyOf[a]), new_stack, r), !w) {
+                if (y.hasOwnProperty("anyOf")) {
+                    for (a = 0, c = y.anyOf.length; c > a; a++)
+                        if (new_stack = i(o), w = u(t, e.concat(y.anyOf[a]), new_stack, r), !w) {
                             s(new_stack, o);
                             break
                         }
                     if (w) return w
                 }
-                if (b.hasOwnProperty("not") && (w = u(t, e.concat(b.not), i(o), r), !w)) return {
+                if (y.hasOwnProperty("not") && (w = u(t, e.concat(y.not), i(o), r), !w)) return {
                     not: !0
                 }
             } else {
-                if (b.hasOwnProperty("oneOf")) {
-                    for (a = 0, c = b.oneOf.length, d = 0; c > a; a++)
-                        if (w = u(t, e.concat(b.oneOf[a]), o, r)) S = w;
+                if (y.hasOwnProperty("oneOf")) {
+                    for (a = 0, c = y.oneOf.length, d = 0; c > a; a++)
+                        if (w = u(t, e.concat(y.oneOf[a]), o, r)) v = w;
                         else if (d += 1, d > 1) break;
                     if (d > 1) return {
                         oneOf: !0
                     };
-                    if (1 > d) return S;
-                    S = {}
+                    if (1 > d) return v;
+                    v = {}
                 }
-                if (b.hasOwnProperty("anyOf")) {
-                    for (a = 0, c = b.anyOf.length; c > a && (w = u(t, e.concat(b.anyOf[a]), o, r), w); a++);
+                if (y.hasOwnProperty("anyOf")) {
+                    for (a = 0, c = y.anyOf.length; c > a && (w = u(t, e.concat(y.anyOf[a]), o, r), w); a++);
                     if (w) return w
                 }
-                if (b.hasOwnProperty("not") && (w = u(t, e.concat(b.not), o, r), !w)) return {
+                if (y.hasOwnProperty("not") && (w = u(t, e.concat(y.not), o, r), !w)) return {
                     not: !0
                 }
-            } if (b.hasOwnProperty("dependencies"))
-                for (p in b.dependencies)
-                    if (b.dependencies.hasOwnProperty(p) && I.hasOwnProperty(p))
-                        if (Array.isArray(b.dependencies[p])) {
-                            for (a = 0, c = b.dependencies[p].length; c > a; a++)
-                                if (!I.hasOwnProperty(b.dependencies[p][a])) return {
+            } if (y.hasOwnProperty("dependencies"))
+                for (p in y.dependencies)
+                    if (y.dependencies.hasOwnProperty(p) && I.hasOwnProperty(p))
+                        if (Array.isArray(y.dependencies[p])) {
+                            for (a = 0, c = y.dependencies[p].length; c > a; a++)
+                                if (!I.hasOwnProperty(y.dependencies[p][a])) return {
                                     dependencies: !0
                                 }
-                        } else if (w = u(t, e.concat(b.dependencies[p]), o, r)) return w;
+                        } else if (w = u(t, e.concat(y.dependencies[p]), o, r)) return w;
             if (Array.isArray(I)) {
-                if (b.hasOwnProperty("items"))
-                    if (Array.isArray(b.items)) {
-                        for (a = 0, c = b.items.length; c > a; a++) w = u(t, e.concat(b.items[a]), o.concat({
+                if (y.hasOwnProperty("items"))
+                    if (Array.isArray(y.items)) {
+                        for (a = 0, c = y.items.length; c > a; a++) w = u(t, e.concat(y.items[a]), o.concat({
                             object: I,
                             key: a
-                        }), r), null !== w && (S[a] = w, v = !0);
-                        if (I.length > c && b.hasOwnProperty("additionalItems"))
-                            if ("boolean" == typeof b.additionalItems) {
-                                if (!b.additionalItems) return {
+                        }), r), null !== w && (v[a] = w, S = !0);
+                        if (I.length > c && y.hasOwnProperty("additionalItems"))
+                            if ("boolean" == typeof y.additionalItems) {
+                                if (!y.additionalItems) return {
                                     additionalItems: !0
                                 }
                             } else
-                                for (a = c, c = I.length; c > a; a++) w = u(t, e.concat(b.additionalItems), o.concat({
+                                for (a = c, c = I.length; c > a; a++) w = u(t, e.concat(y.additionalItems), o.concat({
                                     object: I,
                                     key: a
-                                }), r), null !== w && (S[a] = w, v = !0)
+                                }), r), null !== w && (v[a] = w, S = !0)
                     } else
-                        for (a = 0, c = I.length; c > a; a++) w = u(t, e.concat(b.items), o.concat({
+                        for (a = 0, c = I.length; c > a; a++) w = u(t, e.concat(y.items), o.concat({
                             object: I,
                             key: a
-                        }), r), null !== w && (S[a] = w, v = !0);
-                    else if (b.hasOwnProperty("additionalItems") && "boolean" != typeof b.additionalItems)
-                    for (a = 0, c = I.length; c > a; a++) w = u(t, e.concat(b.additionalItems), o.concat({
+                        }), r), null !== w && (v[a] = w, S = !0);
+                    else if (y.hasOwnProperty("additionalItems") && "boolean" != typeof y.additionalItems)
+                    for (a = 0, c = I.length; c > a; a++) w = u(t, e.concat(y.additionalItems), o.concat({
                         object: I,
                         key: a
-                    }), r), null !== w && (S[a] = w, v = !0);
-                if (v) return {
-                    schema: S
+                    }), r), null !== w && (v[a] = w, S = !0);
+                if (S) return {
+                    schema: v
                 }
             } else {
-                C = [], S = {};
+                C = [], v = {};
                 for (p in I) I.hasOwnProperty(p) && C.push(p);
-                if (r.checkRequired && b.required)
-                    for (a = 0, c = b.required.length; c > a; a++) I.hasOwnProperty(b.required[a]) || (S[b.required[a]] = {
+                if (r.checkRequired && y.required)
+                    for (a = 0, c = y.required.length; c > a; a++) I.hasOwnProperty(y.required[a]) || (v[y.required[a]] = {
                         required: !0
-                    }, v = !0);
-                if (m = b.hasOwnProperty("properties"), g = b.hasOwnProperty("patternProperties"), m || g)
+                    }, S = !0);
+                if (m = y.hasOwnProperty("properties"), g = y.hasOwnProperty("patternProperties"), m || g)
                     for (a = C.length; a--;) {
-                        if (T = !1, m && b.properties.hasOwnProperty(C[a]) && (T = !0, w = u(t, e.concat(b.properties[C[a]]), o.concat({
+                        if (T = !1, m && y.properties.hasOwnProperty(C[a]) && (T = !0, w = u(t, e.concat(y.properties[C[a]]), o.concat({
                             object: I,
                             key: C[a]
-                        }), r), null !== w && (S[C[a]] = w, v = !0)), g)
-                            for (p in b.patternProperties) b.patternProperties.hasOwnProperty(p) && C[a].match(p) && (T = !0, w = u(t, e.concat(b.patternProperties[p]), o.concat({
+                        }), r), null !== w && (v[C[a]] = w, S = !0)), g)
+                            for (p in y.patternProperties) y.patternProperties.hasOwnProperty(p) && C[a].match(p) && (T = !0, w = u(t, e.concat(y.patternProperties[p]), o.concat({
                                 object: I,
                                 key: C[a]
-                            }), r), null !== w && (S[C[a]] = w, v = !0));
+                            }), r), null !== w && (v[C[a]] = w, S = !0));
                         T && C.splice(a, 1)
                     }
-                if (r.useDefault && m && !v)
-                    for (p in b.properties) b.properties.hasOwnProperty(p) && !I.hasOwnProperty(p) && b.properties[p].hasOwnProperty("default") && (I[p] = b.properties[p]["default"]);
-                if (r.removeAdditional && m && b.additionalProperties !== !0 && "object" != typeof b.additionalProperties)
+                if (r.useDefault && m && !S)
+                    for (p in y.properties) y.properties.hasOwnProperty(p) && !I.hasOwnProperty(p) && y.properties[p].hasOwnProperty("default") && (I[p] = y.properties[p]["default"]);
+                if (r.removeAdditional && m && y.additionalProperties !== !0 && "object" != typeof y.additionalProperties)
                     for (a = 0, c = C.length; c > a; a++) delete I[C[a]];
-                else if (b.hasOwnProperty("additionalProperties"))
-                    if ("boolean" == typeof b.additionalProperties) {
-                        if (!b.additionalProperties)
-                            for (a = 0, c = C.length; c > a; a++) S[C[a]] = {
+                else if (y.hasOwnProperty("additionalProperties"))
+                    if ("boolean" == typeof y.additionalProperties) {
+                        if (!y.additionalProperties)
+                            for (a = 0, c = C.length; c > a; a++) v[C[a]] = {
                                 additional: !0
-                            }, v = !0
+                            }, S = !0
                     } else
-                        for (a = 0, c = C.length; c > a; a++) w = u(t, e.concat(b.additionalProperties), o.concat({
+                        for (a = 0, c = C.length; c > a; a++) w = u(t, e.concat(y.additionalProperties), o.concat({
                             object: I,
                             key: C[a]
-                        }), r), null !== w && (S[C[a]] = w, v = !0);
-                if (v) return {
-                    schema: S
+                        }), r), null !== w && (v[C[a]] = w, S = !0);
+                if (S) return {
+                    schema: v
                 }
             }
-            for (f in b) b.hasOwnProperty(f) && !n.hasOwnProperty(f) && ("format" === f ? t.fieldFormat.hasOwnProperty(b[f]) && !t.fieldFormat[b[f]](I, b, o, r) && (S[f] = !0, v = !0) : t.fieldValidate.hasOwnProperty(f) && !t.fieldValidate[f](I, b[f].hasOwnProperty("$data") ? l(o, b[f].$data) : b[f], b, o, r) && (S[f] = !0, v = !0));
-            return v ? S : null
+            for (f in y) y.hasOwnProperty(f) && !n.hasOwnProperty(f) && ("format" === f ? t.fieldFormat.hasOwnProperty(y[f]) && !t.fieldFormat[y[f]](I, y, o, r) && (v[f] = !0, S = !0) : t.fieldValidate.hasOwnProperty(f) && !t.fieldValidate[f](I, y[f].hasOwnProperty("$data") ? l(o, y[f].$data) : y[f], y, o, r) && (v[f] = !0, S = !0));
+            return S ? v : null
         }, d = {
             useDefault: !1,
             useCoerce: !1,
@@ -2839,6 +3367,25 @@ function() {
         s = t("data/with_validation_schemata"),
         n = t("jjv")();
     return i(e, s)
+}), define("data/router", ["require", "flight/lib/component"], function(t) {
+    function e() {
+        this.after("initialize", function() {
+            this.initialUrlHash = window.location.hash, this.on(document, "TD.ready", this.handleTDReady)
+        }), this.handleTDReady = function() {
+            this.processUrlHash(this.initialUrlHash), this.cleanUrl()
+        }, this.cleanUrl = function() {
+            window.history && "function" == typeof window.history.replaceState ? history.replaceState({}, "", window.location.pathname) : window.location.hash = ""
+        }, this.processUrlHash = function(t) {
+            if (t) {
+                var e = TD.util.extractTweetDeckSharedColumnFromFragment(t);
+                e && this.trigger("uiShowImportColumnDialog", {
+                    columnState: e
+                })
+            }
+        }
+    }
+    var i = t("flight/lib/component");
+    return i(e)
 }), define("tracking/account_scribe", ["flight/lib/component"], function(t) {
     function e() {
         this.trackSelectDefaultAccount = function() {
@@ -2869,7 +3416,7 @@ function() {
 }), define("tracking/compose_scribe", ["require", "flight/lib/component", "data/with_client"], function(t) {
     function e() {
         this.after("initialize", function() {
-            this.on(document, "dataTweetSent", this.handleTweetSent), this.on(document, "uiRemoveInReplyTo", this.handleClearReply), this.on(document, "uiComposeStackReply", this.handleStackReply), this.on(document, "uiDockedComposeTweet", this.handleDockedTweet)
+            this.on(document, "dataTweetSent", this.handleTweetSent), this.on(document, "dataScheduledTweetsSent", this.handleScheduledTweetSent), this.on(document, "uiRemoveInReplyTo", this.handleClearReply), this.on(document, "uiComposeStackReply", this.handleStackReply), this.on(document, "uiDockedComposeTweet", this.handleDockedTweet)
         }), this.handleTweetSent = function(t, e) {
             var i = this.getAccountData(e.request.accountKey),
                 s = i ? i.id : null,
@@ -2886,6 +3433,12 @@ function() {
                 case "message":
                     TD.controller.stats.postMessage(s, n, o)
             }
+        }, this.handleScheduledTweetSent = function(t, e) {
+            e = e || {}, e.request = e.request || {}, e.request.requests = e.request.requests || [], e.request.requests.forEach(function(e) {
+                this.handleTweetSent(t, {
+                    request: e
+                })
+            }.bind(this))
         }, this.handleClearReply = function() {
             TD.controller.stats.composeClearReply()
         }, this.handleStackReply = function() {
@@ -3003,7 +3556,7 @@ function() {
     }
     var i = t("flight/lib/component");
     return i(e)
-}), define("util/data_setup", ["flight/lib/component", "data/storage", "data/accounts", "data/column_manager", "data/embed_timeline", "data/embed_tweet", "data/message_banner", "data/preferred_account", "data/relationship", "data/favorite", "data/twitter_user", "data/user_actions", "data/settings", "data/stream_counter", "data/user_search", "data/recent_searches", "data/typeahead", "data/user_profile_social_proof", "data/twitter_users", "data/lists", "data/account", "data/tweet", "data/tweetdeck_api", "data/touch_controller", "data/custom_timelines", "data/secure_image", "data/dm_report", "data/migrate", "data/schema_validator", "tracking/account_scribe", "tracking/column_options_scribe", "tracking/compose_scribe", "tracking/custom_timeline_scribe", "tracking/message_banner_scribe", "tracking/embed_tweet_dialog_scribe", "tracking/typeahead_scribe", "tracking/social_proof_for_tweet_scribe", "tracking/report_tweet_scribe", "tracking/report_message_scribe"], function(t) {
+}), define("util/data_setup", ["flight/lib/component", "data/storage", "data/accounts", "data/column_manager", "data/contributors", "data/embed_timeline", "data/embed_tweet", "data/message_banner", "data/preferred_account", "data/relationship", "data/favorite", "data/twitter_user", "data/user_actions", "data/settings", "data/stream_counter", "data/user_search", "data/recent_searches", "data/typeahead", "data/user_profile_social_proof", "data/twitter_users", "data/lists", "data/tweet", "data/schedule_tweet", "data/tweetdeck_api", "data/touch_controller", "data/custom_timelines", "data/secure_image", "data/dm_report", "data/migrate", "data/schema_validator", "data/router", "tracking/account_scribe", "tracking/column_options_scribe", "tracking/compose_scribe", "tracking/custom_timeline_scribe", "tracking/message_banner_scribe", "tracking/embed_tweet_dialog_scribe", "tracking/typeahead_scribe", "tracking/social_proof_for_tweet_scribe", "tracking/report_tweet_scribe", "tracking/report_message_scribe"], function(t) {
     var e = Array.prototype.slice.call(arguments, 1);
     return t(function() {
         this.after("initialize", function() {
@@ -3177,7 +3730,7 @@ function() {
                     event: "uiKeyEscape"
                 }, {
                     event: "uiInputBlur",
-                    selector: "input, textarea"
+                    selector: "input, textarea, select"
                 }, {
                     event: "uiCloseModal"
                 }, {
@@ -3308,6 +3861,9 @@ function() {
                 end: [{
                     event: "uiGridEnd",
                     throttle: !0
+                }],
+                ",": [{
+                    event: "uiShowGlobalSettings"
                 }]
             }
         }), this.blurInput = function(t) {
@@ -3339,20 +3895,6 @@ function() {
         })
     };
     return t(i, e)
-}), define("ui/with_template", [], function() {
-    function t() {
-        this.render = function(t, e) {
-            this.$node.html(this.toHtml(t, e))
-        }, this.renderTemplate = function(t, e) {
-            return $(TD.ui.template.render(t, e))
-        }, this.toHtml = function(t, e) {
-            return TD.ui.template.render(t, e)
-        }, this.toHtmlFromRaw = function(t, e) {
-            var i = Hogan.compile(t);
-            return i.render(e)
-        }
-    }
-    return t
 }), define("ui/message_banner", ["flight/lib/component", "ui/with_template"], function(t, e) {
     var i = function() {
         this.defaultAttrs({
@@ -3538,7 +4080,7 @@ function() {
                 this.trigger(this.$input, "uiSearchInputSubmit", {
                     query: this.$input.val()
                 })
-            }), this.on(this.select("clearButtonSelector"), "click", this.handleClearSearchAction), this.on("uiAppSearchSetPreventDefault", this.setPreventKeyDefault), this.on("uiAppSearchItemComplete", this.completeInput), this.on("uiAppSearchSubmit", this.handleAppSearchSubmit), this.on(document, "uiNewSearchQuery uiSearchInputChanged", this.handleSearchInputChanged)
+            }), this.on(this.select("clearButtonSelector"), "click", this.handleClearSearchAction), this.on("uiAppSearchSetPreventDefault", this.setPreventKeyDefault), this.on("uiAppSearchItemComplete", this.completeInput), this.on("uiAppSearchSubmit", this.handleAppSearchSubmit), this.on(document, "uiNewSearchQuery uiSearchInputChanged", this.handleSearchInputChanged), this.on("uiSearchInPopoverHidden", this.handleResetState)
         }), this.handleSearchInputChanged = function(t, e) {
             e.source !== this.attr.sourceId && (this.$input.val(e.query), this.currentQuery = e.query)
         }, this.handleAppSearchSubmit = function(t, e) {
@@ -3579,37 +4121,63 @@ function() {
             this.$input.focus()
         }, this.handleClearSearchAction = function() {
             this.focusInput()
+        }, this.handleResetState = function() {
+            this.currentQuery = null, this.$input.val("")
         }, this.before("teardown", function() {
             this.trigger("uiDestroyAsynchronousForm")
         })
     }
     return t(i)
-}), define("ui/with_column_selectors", [], function() {
-    var t = function() {
+}), define("ui/alerts_form", ["flight/lib/component", "ui/with_template"], function(t, e) {
+    var i = function() {
         this.defaultAttrs({
-            columnStateDetailViewClass: "js-column-state-detail-view",
-            columnStateSocialProofClass: "js-column-state-social-proof",
-            columnSelector: ".js-app-columns .js-column",
-            columnUpdateGlow: ".js-column-update-glow",
-            scrollContainerSelector: ".js-column-scroller",
-            columnDetailScrollerSelector: ".js-detail-container",
-            columnOptionsSelector: ".js-column-options",
-            columnOptionsContainerSelector: ".js-column-options-container",
-            columnHeaderSelector: ".js-column-header",
-            columnContentSelector: ".js-column-content"
-        }), this.getColumnScrollContainerByKey = function(t) {
-            var e = this.getColumnElementByKey(t),
-                i = e.find(this.attr.columnDetailScrollerSelector);
-            return i.length > 0 ? i : e.find(this.attr.scrollContainerSelector)
-        }, this.getColumnElementByKey = function(t) {
-            return this.select("columnSelector").filter('[data-column="' + t + '"]')
-        }, this.getKeyForColumnAtIndex = function(t) {
-            return this.select("columnSelector").eq(t).attr("data-column")
-        }, this.getKeyForLastColumn = function() {
-            return this.select("columnSelector").last().attr("data-column")
-        }
+            template: "column/alerts_form",
+            actionButton: "[data-action]",
+            summarySelector: ".js-alerts-summary",
+            summaryClass: "js-alerts-summary"
+        }), this.updateSummary = function() {
+            var t, e = this.column.model,
+                i = e.getHasNotification(),
+                s = e.getHasSound();
+            t = i && s ? TD.i("sounds and popups") : i ? TD.i("popups") : s ? TD.i("sounds") : TD.i("none"), this.select("summarySelector").text(t)
+        }, this.toggleColumnSetting = function(t) {
+            var e, i = TD.controller.notifications,
+                s = $(t.target).closest(this.attr.actionButton),
+                n = s.data("action"),
+                o = this.column.model,
+                r = function(t) {
+                    "granted" === t && o.setHasNotification(e)
+                };
+            switch (n) {
+                case "popups":
+                    e = !o.getHasNotification(), i.isPermissionGranted() ? r("granted") : i.getPermission(r);
+                    break;
+                case "sound":
+                    e = !o.getHasSound(), o.setHasSound(e)
+            }
+            this.updateSummary()
+        }, this.after("initialize", function() {
+            var t = {
+                summaryText: "",
+                iconClass: "icon-info",
+                title: TD.i("Alerts"),
+                jsClass: this.attr.summaryClass,
+                options: [{
+                    action: "sound",
+                    option: TD.i("Sounds"),
+                    on: this.attr.column.model.getHasSound()
+                }]
+            };
+            return this.column = this.attr.column, this.column.getColumnType() === TD.util.columnUtils.columnMetaTypes.SCHEDULED ? (this.teardown(), void 0) : (TD.controller.notifications.hasNotifications() && t.options.push({
+                action: "popups",
+                option: TD.i("Popups"),
+                on: this.column.model.getHasNotification()
+            }), this.$alertsForm = this.renderTemplate(this.attr.template, t), this.$node.append(this.$alertsForm), this.updateSummary(), this.on(this.$alertsForm, "click", {
+                actionButton: this.toggleColumnSetting
+            }), void 0)
+        })
     };
-    return t
+    return t(i, e)
 }), define("ui/with_transitions", [], function() {
     function t() {
         this.measureElementHeight = function(t, e) {
@@ -3625,18 +4193,23 @@ function() {
             var o = function() {
                 t.removeClass(s), t.trigger("uiTransitionExpandEnd"), "function" == typeof n && n()
             };
-            return e === i ? void(n && n()) : (t.css({
+            return e === i ? (n && n(), void 0) : (t.css({
                 height: e
-            }), void _.defer(function() {
+            }), _.defer(function() {
                 t.addClass(s), t.trigger("uiTransitionExpandStart", {
                     delta: i - e
                 }), TD.ui.main.TRANSITION_END_EVENTS ? t.one(TD.ui.main.TRANSITION_END_EVENTS, o) : o(), t.height(i)
-            }.bind(this)))
+            }.bind(this)), void 0)
         }, this.animateElementContentHeight = function(t, e, i, s) {
+            var n = function() {
+                t.html(e)
+            };
+            this.animateElementHeightChange(t, n, i, s)
+        }, this.animateElementHeightChange = function(t, e, i, s) {
             var n, o = this.measureElementHeight(t, i);
             t.css({
                 height: ""
-            }), t.html(e), n = this.measureElementHeight(t), this.animateHeightFromTo(t, o, n, i, s)
+            }), e(), n = this.measureElementHeight(t), this.animateHeightFromTo(t, o, n, i, s)
         }, this.transitionExpand = function(t, e, i) {
             this.animateHeight(t, e, i, "expand")
         }, this.transitionCollapse = function(t, e, i) {
@@ -3646,1278 +4219,15 @@ function() {
                 t.removeClass(e), "function" == typeof s && s()
             };
             t.addClass(e), t.css("top", i), TD.ui.main.TRANSITION_END_EVENTS ? t.one(TD.ui.main.TRANSITION_END_EVENTS, n) : n()
+        }, this.addAnimateClass = function(t, e, i) {
+            return i = i || function() {}, TD.ui.main.ANIMATION_END_EVENTS ? (t.one(TD.ui.main.ANIMATION_END_EVENTS, function() {
+                t.removeClass(e), i()
+            }), t.addClass(e), void 0) : (i(), void 0)
+        }, this.stopAnimation = function(t, e) {
+            t.off(TD.ui.main.ANIMATION_END_EVENTS), t.removeClass(e)
         }
     }
     return t
-}),
-function(t, e) {
-    "function" == typeof define && define.amd ? define("util/animation_frame", [], e) : _.extend(t, e())
-}(this, function() {
-    var t = 0,
-        e = ["ms", "moz", "webkit", "o"],
-        i = {};
-    i = {
-        requestAnimationFrame: window.requestAnimationFrame,
-        cancelAnimationFrame: window.cancelAnimationFrame
-    };
-    for (var s = 0; s < e.length && !i.requestAnimationFrame; s += 1) i.requestAnimationFrame = window[e[s] + "RequestAnimationFrame"], i.cancelAnimationFrame = window[e[s] + "CancelAnimationFrame"] || window[e[s] + "CancelRequestAnimationFrame"];
-    return i.requestAnimationFrame || (i.requestAnimationFrame = function(e) {
-        var i = (new Date).getTime(),
-            s = Math.max(0, 16 - (i - t)),
-            n = window.setTimeout(function() {
-                e(i + s)
-            }, s);
-        return t = i + s, n
-    }), i.cancelAnimationFrame || (i.cancelAnimationFrame = function(t) {
-        clearTimeout(t)
-    }), i
-}), define("ui/with_easing", ["require", "util/animation_frame"], function(t) {
-    function e() {
-        this.easeFn = function(t) {
-            var e = s[t];
-            if (!e) throw "No such method";
-            return function(t, i, s) {
-                return i + s * e(t)
-            }
-        }, this.before("initialize", function() {
-            this.runningInterpolations = {}, this.easingGuid = 1
-        }), this.ease = function(t, e) {
-            if (t = t || {}, [typeof t.from, typeof t.time, typeof t.applicator].indexOf("undefined") > -1) throw new Error("animate requires from, time and applicator.");
-            var s = parseFloat(t.from);
-            if (!_.isNumber(s)) throw new Error("A numeric from value is required.");
-            if ("undefined" == typeof t.to && "undefined" == typeof t.delta) throw new Error("animate either a to amount or a delta.");
-            var n = parseFloat(t.to);
-            if ("undefined" != typeof t.delta && (n = s + parseFloat(t.delta)), !_.isNumber(n)) throw new Error("A numeric to value is required.");
-            var o = t.time;
-            _.isNumber(o) || (o = parseFloat(o));
-            var r = t.easing;
-            "function" != typeof r && (r = this.easeFn("linear"));
-            var a = t.applicator;
-            if ("function" != typeof a) throw new Error("applicator must be a function.");
-            var c = t.name;
-            e = e || function() {};
-            var h = Date.now(),
-                l = n - s;
-            0 !== l && (c && (this.runningInterpolations[c] = this.easingGuid), i(function u(t) {
-                var n = Date.now() - h,
-                    d = n / o;
-                return n >= o ? (a(r(1, s, l)), e(n)) : c && this.runningInterpolations[c] !== t ? e(n) : (i(u.bind(this, t)), void a(r(d, s, l), s, d))
-            }.bind(this, this.easingGuid)), this.easingGuid += 1)
-        }
-    }
-    var i = t("util/animation_frame").requestAnimationFrame,
-        s = {
-            linear: function(t) {
-                return t
-            },
-            inQuad: function(t) {
-                return t * t
-            },
-            outQuad: function(t) {
-                return t * (2 - t)
-            },
-            inOutQuad: function(t) {
-                return .5 > t ? 2 * t * t : -1 + (4 - 2 * t) * t
-            },
-            inCubic: function(t) {
-                return t * t * t
-            },
-            outCubic: function(t) {
-                return --t * t * t + 1
-            },
-            inOutCubic: function(t) {
-                return .5 > t ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1
-            },
-            inQuart: function(t) {
-                return t * t * t * t
-            },
-            outQuart: function(t) {
-                return 1 - --t * t * t * t
-            },
-            inOutQuart: function(t) {
-                return .5 > t ? 8 * t * t * t * t : 1 - 8 * --t * t * t * t
-            },
-            inQuint: function(t) {
-                return t * t * t * t * t
-            },
-            outQuint: function(t) {
-                return 1 + --t * t * t * t * t
-            },
-            inOutQuint: function(t) {
-                return .5 > t ? 16 * t * t * t * t * t : 1 + 16 * --t * t * t * t * t
-            }
-        };
-    return e
-}), define("ui/drag_drop/with_drag_scroll", ["require", "flight/lib/compose", "ui/with_easing"], function(t) {
-    function e() {
-        i.mixin(this, [s]), this.defaultAttrs({
-            defaultDragScrollConfig: {
-                regionSize: 20,
-                maxSpeed: 400,
-                throttlePeriod: 200,
-                horizontal: !0,
-                vertical: !1,
-                deltaFn: function(t) {
-                    return t
-                }
-            }
-        }), this.before("initialize", function() {
-            this.animateScrollLeft = this.animateScroll.bind(this, "scrollLeft"), this.animateScrollTop = this.animateScroll.bind(this, "scrollTop")
-        }), this.handleDrag = function(t, e, i, s) {
-            if (this.justDropped) return void(this.justDropped = !1);
-            var n = $(s.el),
-                o = this.mousePositionRelativeToElement(n, i.originalEvent),
-                r = {};
-            r.left = o.x / n.width() * 100, r.right = 100 - r.left, r.top = o.y / n.height() * 100, r.bottom = 100 - r.top;
-            var a = {};
-            a.left = -this.percToDelta(r.left, t), a.right = this.percToDelta(r.right, t), a.up = -this.percToDelta(r.top, t), a.down = this.percToDelta(r.bottom, t), t.horizontal !== !1 && (r.left < t.regionSize ? this.animateScrollLeft(n, "left", a.left, t, e.left) : r.right < t.regionSize && this.animateScrollLeft(n, "right", a.right, t, e.right)), t.vertical !== !1 && (r.top < t.regionSize ? this.animateScrollTop(n, "up", a.up, t, e.up) : r.bottom < t.regionSize && this.animateScrollTop(n, "down", a.down, t, e.down))
-        }, this.setupDragScroll = function(t, e) {
-            e = _.defaults(e || {}, this.attr.defaultDragScrollConfig);
-            var i = {
-                up: {},
-                down: {},
-                left: {},
-                right: {}
-            }, s = {};
-            s[t] = _.throttle(this.handleDrag.bind(this, e, i), e.throttlePeriod), this.on("dragover", s), this.on("drop", function() {
-                this.justDropped = !0
-            })
-        }, this.percToDelta = function(t, e) {
-            var i = t / e.regionSize;
-            return e.maxSpeed - e.maxSpeed * i
-        }, this.animateScroll = function(t, e, i, s, n, o) {
-            var r = $(e);
-            if (!r[t]) throw new Error("$elem has no method " + t);
-            o.over || (o.over = !0, o.startTime = Date.now()), clearTimeout(o.timeout), o.timeout = setTimeout(function() {
-                o.over = !1
-            }, 1.1 * n.throttlePeriod);
-            var a = Date.now() - o.startTime,
-                c = n.deltaFn.call(this, s, i, h, a),
-                h = r[t]();
-            this.ease({
-                name: "drag-scroll",
-                from: h,
-                delta: c,
-                time: n.throttlePeriod,
-                applicator: function(e) {
-                    r[t](e)
-                }
-            })
-        }, this.getMousePosition = function(t) {
-            var e = 0,
-                i = 0;
-            return t || (t = window.event), t.pageX || t.pageY ? (e = t.pageX, i = t.pageY) : (t.clientX || t.clientY) && (e = t.clientX + document.body.scrollLeft + document.documentElement.scrollLeft, i = t.clientY + document.body.scrollTop + document.documentElement.scrollTop), {
-                x: e,
-                y: i
-            }
-        }, this.mousePositionRelativeToElement = function(t, e) {
-            var i = $(t),
-                s = i.offset(),
-                n = this.getMousePosition(e);
-            return n.x -= s.left + parseInt(i.css("paddingLeft"), 10) + parseInt(i.css("borderLeftWidth"), 10), n.y -= s.top + parseInt(i.css("paddingTop"), 10) + parseInt(i.css("borderTopWidth"), 10), n
-        }
-    }
-    var i = t("flight/lib/compose"),
-        s = t("ui/with_easing");
-    return e
-}), define("ui/compose/with_character_limit", [], function() {
-    return function() {
-        this.defaultAttrs({
-            maxCharCount: 140
-        }), this.getRemainingCharCount = function(t) {
-            return this.attr.maxCharCount - t
-        }, this.isWithinCharLimit = function(t) {
-            return t <= this.attr.maxCharCount && t > 0
-        }, this.isOverCharLimit = function(t) {
-            return t > this.attr.maxCharCount
-        }
-    }
-}), define("ui/compose/with_character_count", ["require", "flight/lib/compose", "ui/compose/with_character_limit"], function(t) {
-    var e = t("flight/lib/compose"),
-        i = t("ui/compose/with_character_limit");
-    return function() {
-        e.mixin(this, [i]), this.defaultAttrs({
-            charCountSelector: ".js-character-count",
-            charCountInvalidClass: "invalid-char-count"
-        }), this.after("initialize", function() {
-            this.charCount = 0, this.on("uiComposeCharCount", this.charCountHandleCharCount)
-        }), this.after("setupDOM", function() {
-            this.$charCountInput = this.select("charCountSelector")
-        }), this.charCountHandleCharCount = function(t, e) {
-            t.stopPropagation(), this.charCount = e.charCount, this.$charCountInput.val(this.getRemainingCharCount(this.charCount)), this.charCountUpdateValidCountState(this.charCount)
-        }, this.charCountUpdateValidCountState = function(t) {
-            var e = this.isOverCharLimit(t);
-            this.$charCountInput.toggleClass(this.attr.charCountInvalidClass, e)
-        }
-    }
-}), define("util/tweet_utils", [], function() {
-    var t = {};
-    return t.atMentionify = function(t) {
-        return TD.util.atMentionify(t)
-    }, t.deMentionify = function(t) {
-        return TD.util.deMentionify(t)
-    }, t.getTweetLength = function(t) {
-        return twttr.txt.getTweetLength(t)
-    }, t.extractMentions = function(t) {
-        return twttr.txt.extractMentions(t)
-    }, t.removeFirstMention = function(t) {
-        var e, i = twttr.txt.extractMentionsWithIndices(t);
-        return i.length && (e = i[0].indices, t = t.substring(0, e[0]).trim() + t.substring(e[1])), t
-    }, t
-}), define("ui/with_focusable_field", [], function() {
-    var t = function() {
-        this.defaultAttrs({
-            focusableSelector: "textarea, input"
-        }), this.after("initialize", function() {
-            var t = this.select("focusableSelector");
-            this.on(t, "focus", function() {
-                TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) && (window.scrollTo(0, 0), document.body.scrollTop = 0)
-            })
-        })
-    };
-    return t
-}), define("ui/compose/with_compose_text", ["require", "flight/lib/compose", "util/tweet_utils", "ui/with_focusable_field"], function(t) {
-    var e = t("flight/lib/compose"),
-        i = t("util/tweet_utils"),
-        s = t("ui/with_focusable_field");
-    return function() {
-        e.mixin(this, [s]);
-        var t = "",
-            n = !1,
-            o = [],
-            r = [],
-            a = function(t) {
-                var e = {};
-                return t.map(function(t) {
-                    return t.filter(function(t) {
-                        var i = t.toLowerCase(),
-                            s = e[i];
-                        return e[i] = !0, !s
-                    })
-                })
-            };
-        this.defaultAttrs({
-            composeTextSelector: ".js-compose-text",
-            withAutoComplete: !0
-        }), this.after("initialize", function() {
-            this.on("uiRemoveInReplyTo", this.removeReplyStack), this.on("uiMessageRecipientSet", function(t) {
-                t.stopPropagation(), this.composeTextSetFocus()
-            }), this.before("setupDOM", this.destroyAutoComplete), this.before("teardown", this.destroyAutoComplete)
-        }), this.after("setupDOM", function() {
-            this.$composeTextInput = this.select("composeTextSelector"), this.on(this.$composeTextInput, "input propertychange change", this.composeTextHandleChange), this.on(this.$composeTextInput, "blur", this.handleTextInputBlur), this.on("uiRequestComposeTextFocus", function() {
-                (!TD.util.isiOSDevice() || !TD.decider.get(TD.decider.TOUCHDECK_COMPOSE)) && this.composeTextSetFocus()
-            }), this.attr.withAutoComplete && (this.textAutoComplete = new TD.components.Autocomplete(this.$composeTextInput))
-        }), this.composeTextGetText = function() {
-            return this.$composeTextInput.val()
-        }, this.composeTextSetFocus = function() {
-            this.$composeTextInput.focus()
-        }, this.composeTextBlur = function() {
-            this.$composeTextInput.blur()
-        }, this.composeTextSetText = function(t) {
-            this.$composeTextInput.val() !== t && (this.$composeTextInput.val(t), this.composeTextHandleChange())
-        }, this.composeTextAppendText = function(t) {
-            var e = this.$composeTextInput.val();
-            this.composeTextSetText((e && e.trim() + " ") + t)
-        }, this.composeTextPrependText = function(t) {
-            this.composeTextSetText(t + " " + this.composeTextGetText())
-        }, this.composeTextSetDisabled = function(t) {
-            this.$composeTextInput.prop("disabled", t)
-        }, this.composeTextIsEmpty = function() {
-            return "" === this.$composeTextInput.val()
-        }, this.composeTextSetCaret = function(t) {
-            var e = this.$composeTextInput;
-            e[0].selectionStart = e[0].selectionEnd = t, e.focus()
-        }, this.composeTextSetCaretToEnd = function() {
-            this.composeTextSetCaret(this.$composeTextInput.val().length)
-        }, this.composeTextSetSelection = function(t, e) {
-            var i = this.$composeTextInput[0];
-            i.selectionStart = t, i.selectionEnd = e, setTimeout(function() {
-                i.selectionStart = t, i.selectionEnd = e
-            }, 70), this.$composeTextInput.focus()
-        }, this.composeTextSetHeight = function(t) {
-            this.$composeTextInput.css({
-                height: t
-            })
-        }, this.removeReplyStack = function(e) {
-            e.stopPropagation();
-            var i = this.composeTextGetReplyText();
-            this.composeTextSetText(i.trim()), o = [], r = [], n = !1, t = ""
-        }, this.composeTextReset = function() {
-            this.composeTextSetText(""), o = [], r = [], n = !1, t = ""
-        }, this.composeTextSetRepliesAndMentions = function(t, e, i) {
-            var s = this.composeTextComputeRepliesAndMentions(t, e, i);
-            this.composeTextSetText(s.totalString), this.composeTextSetSelection(s.startIndex, s.endIndex)
-        }, this.composeTextComputeRepliesAndMentions = function(e, s, a) {
-            return e = e.map(i.atMentionify), s = s.map(i.atMentionify), a = a && i.atMentionify(a), a && (s = s.filter(function(t) {
-                return t.toLowerCase() !== a.toLowerCase()
-            }), a === e[0] && s.length > 0 && (e = [s.shift()])), e = e.map(i.atMentionify), s = s.map(i.atMentionify), n === !1 && (n = this.$composeTextInput.val()), this.composeTextIsStacking() && this.composeTextHasLostStackingState() && (o = [], r = [], t = this.$composeTextInput.val(), n = ""), this.composeTextGetReplyStack(e, s)
-        }, this.composeTextHandleChange = function() {
-            var t = this.$composeTextInput.val();
-            this.trigger("uiComposeCharCount", {
-                charCount: i.getTweetLength(t),
-                stringLength: t.length
-            })
-        }, this.handleTextInputBlur = function() {
-            this.trigger("uiComposeTextBlur")
-        }, this.composeTextIsStacking = function() {
-            return o.length + r.length > 0
-        }, this.composeTextGenerateReplyStack = function(t, e, i) {
-            var s, o, r, a = t.join(" "),
-                c = e.join(" "),
-                h = [];
-            return i && (i = i.replace(/ $/, ""), h.push(i)), a && h.push(a), n && h.push(n), c && h.push(c), s = h.join(" ").trim() + " ", o = c ? s.length - c.length - 1 : s.length, r = s.length, {
-                totalString: s,
-                startIndex: o,
-                endIndex: r
-            }
-        }, this.composeTextGetReplyText = function() {
-            var t = r.concat(o);
-            return this.$composeTextInput.val().split(" ").filter(function(e) {
-                return t.indexOf(e) < 0
-            }).join(" ")
-        }, this.composeTextHasLostStackingState = function() {
-            var e = this.composeTextGenerateReplyStack(o, r, t);
-            return e.totalString !== this.$composeTextInput.val() || e.startIndex !== this.$composeTextInput[0].selectionStart || e.endIndex !== this.$composeTextInput[0].selectionEnd
-        }, this.composeTextGetReplyStack = function(e, i) {
-            var s;
-            return this.composeTextIsStacking() && this.trigger("uiComposeStackReply"), o = o.concat(e), r = r.concat(i), s = a([o, r]), o = s[0], r = s[1], this.composeTextGenerateReplyStack(o, r, t)
-        }, this.destroyAutoComplete = function() {
-            this.textAutoComplete && (this.textAutoComplete.destroy(), this.textAutoComplete = null)
-        }
-    }
-}), define("util/with_teardown", [], function() {
-    function t() {
-        this.before("initialize", function() {
-            this.childTeardownEvent = this.childTeardownEvent || this.nextTeardownEvent()
-        }), this.before("teardown", function() {
-            this.trigger(document, this.childTeardownEvent)
-        }), this.after("initialize", function() {
-            if (this.attr.teardownOn) {
-                if (this.attr.teardownOn === this.childTeardownEvent) throw new Error("Component initialized to listen for its own teardown event.");
-                this.on(document, this.attr.teardownOn, this.teardown)
-            }
-        }), this.nextTeardownEvent = function() {
-            return _.uniqueId("_teardownEvent")
-        }, this.attachChild = function(t, e, i) {
-            i = i || {}, i.teardownOn || (i.teardownOn = this.childTeardownEvent), t.attachTo(e, i)
-        }
-    }
-    return t
-}), define("ui/custom_timeline_description", ["require", "flight/lib/component", "ui/compose/with_character_count", "ui/compose/with_character_limit", "ui/compose/with_compose_text", "util/with_teardown", "ui/with_template", "ui/with_transitions"], function(t) {
-    function e() {
-        this.defaultAttrs({
-            accountKey: null,
-            customTimelineId: null,
-            isOwnCustomTimeline: !1,
-            readOnly: !1,
-            reloadPeriod: 900,
-            animatingClass: "is-column-options-animating",
-            inputSelector: ".js-input",
-            editSelector: ".js-edit",
-            saveSelector: ".js-save",
-            cancelSelector: ".js-cancel"
-        }), this.after("initialize", function() {
-            this.customTimeline = null, this.newDescription = null, this.on(document, "dataCustomTimelineSuccess", this.handleCustomTimeline.bind(this)), this.on(document, "dataCustomTimelineUpdateError", this.handleUpdateError.bind(this)), this.on("uiComposeCharCount", this.handleCharCount), this.on("click", {
-                editSelector: this.edit,
-                saveSelector: this.save,
-                cancelSelector: this.cancel
-            }), this.on("uiInputSubmit", {
-                inputSelector: this.save
-            }), this.on("uiInputBlur", {
-                inputSelector: this.cancel
-            }), this.reloadTaskId = TD.controller.scheduler.schedulePeriodicTask(this.attr.reloadPeriod, this.requestData.bind(this), !0)
-        }), this.before("teardown", function() {
-            TD.controller.scheduler.removePeriodicTask(this.reloadTaskId)
-        }), this.requestData = function() {
-            this.trigger(document, "uiNeedsCustomTimeline", {
-                id: this.attr.customTimelineId,
-                account: this.attr.accountKey
-            })
-        }, this.handleCustomTimeline = function(t, e) {
-            var i = !0;
-            e.action.id === this.attr.customTimelineId && (i = !this.customTimeline || this.customTimeline.description !== e.result.description, this.customTimeline = e.result, this.customTimeline.description === this.newDescription && (this.newDescription = null), i && this.showDescription(this.customTimeline.description))
-        }, this.showDescription = function(t) {
-            var e = this.renderTemplate("column/custom_timeline_description", {
-                description: t,
-                editable: this.attr.isOwnCustomTimeline && !this.attr.readOnly
-            });
-            this.animateElementContentHeight(this.$node, e, this.attr.animatingClass)
-        }, this.edit = function() {
-            var t = null !== this.newDescription ? this.newDescription : this.customTimeline.description,
-                e = this.renderTemplate("column/custom_timeline_edit_description");
-            this.animateElementContentHeight(this.$node, e, this.attr.animatingClass), this.select("inputSelector").focus(), this.setupDOM(), this.composeTextSetText(t), this.composeTextSetCaretToEnd(), this.composeTextHandleChange()
-        }, this.setupDOM = function() {}, this.save = function() {
-            var t = this.select("inputSelector").val(),
-                e = this.customTimeline ? this.customTimeline.description : null;
-            this.select("saveSelector").prop("disabled") || (this.showDescription(t), t !== e && (this.newDescription = t, this.trigger(document, "uiUpdateCustomTimeline", {
-                account: this.attr.accountKey,
-                id: this.attr.customTimelineId,
-                description: t
-            })))
-        }, this.cancel = function() {
-            this.showDescription(this.customTimeline.description)
-        }, this.handleUpdateError = function(t, e) {
-            e.action.id === this.attr.customTimelineId && this.newDescription && (this.edit(), TD.controller.progressIndicator.addMessage(TD.i("Error: unable to save description")))
-        }, this.handleCharCount = function(t, e) {
-            var i = this.isOverCharLimit(e.charCount);
-            this.select("saveSelector").prop("disabled", i)
-        }
-    }
-    var i = t("flight/lib/component"),
-        s = t("ui/compose/with_character_count"),
-        n = t("ui/compose/with_character_limit"),
-        o = t("ui/compose/with_compose_text"),
-        r = t("util/with_teardown"),
-        a = t("ui/with_template"),
-        c = t("ui/with_transitions");
-    return i(e, s, n, o, r, a, c)
-}), define("ui/with_text_utils", ["flight/lib/compose", "ui/with_template"], function(t, e) {
-    function i() {
-        t.mixin(this, [e]), this.highlightSubstring = function(t, e) {
-            var i, s, n = -1;
-            return e && (n = t.toLowerCase().indexOf(e.toLowerCase())), -1 !== n ? (s = {
-                before: t.substr(0, n),
-                highlight: t.substr(n, e.length),
-                after: t.substr(n + e.length)
-            }, i = this.toHtmlFromRaw("{{before}}<b>{{highlight}}</b>{{after}}", s)) : i = this.toHtmlFromRaw("{{text}}", {
-                text: t
-            }), i
-        }, this.prettyNumber = function(t) {
-            return TD.util.prettyNumber(t)
-        }
-    }
-    return i
-}), define("ui/with_user_menu", [], function() {
-    var t = function() {
-        this.defaultAttrs({
-            userMenuButtonSelector: ".js-profile-menu"
-        }), this.showUserMenu = function(t, e, i) {
-            var s = !0;
-            return this.userMenu && (s = i.id !== this.userMenu.user.id, this.userMenu.destroy()), s && (this.userMenu = new TD.components.ProfileMenu(e, TD.components.DropDown.POSITION_LEFT, i), t.stopPropagation()), s
-        }, this.handleUserMenuButtonClick = function(t) {
-            var e = $(t.target).closest(this.attr.userMenuButtonSelector),
-                i = e.data("user-id").toString(),
-                s = this.users.filter(function(t) {
-                    return t.id === i
-                })[0];
-            this.showUserMenu(t, e, s)
-        }, this.destroyMenuReference = function(t, e) {
-            e.target === this.userMenu && (this.userMenu = null)
-        }, this.hideUserMenu = function() {
-            this.userMenu && this.userMeny.destroy()
-        }, this.before("teardown", function() {
-            this.userMenu && this.userMenu.destroy()
-        }), this.after("initialize", function() {
-            this.userMenu = null, this.on("td-dropdown-close", this.destroyMenuReference), this.on("click", {
-                userMenuButtonSelector: this.handleUserMenuButtonClick
-            })
-        })
-    };
-    return t
-}), define("ui/social_proof_for_tweet", ["flight/lib/component", "ui/with_template", "ui/with_text_utils", "ui/with_user_menu"], function(t, e, i, s) {
-    var n = function() {
-        this.defaultAttrs({
-            columnBackSelector: ".js-tweet-social-proof-back",
-            headerLinkClass: "js-tweet-social-proof-back",
-            templateName: "status/social_proof_for_tweet"
-        }), this.handleTwitterUsers = function(t, e) {
-            e.requestId === this.requestId && (this.renderParams.users = e.users, this.users = e.users, this.render(this.attr.templateName, this.renderParams))
-        }, this.close = function() {
-            this.trigger("uiSocialProofForTweetClosed"), this.teardown()
-        }, this.after("initialize", function() {
-            var t, e, i;
-            this.on("uiSocialProofForTweetClose", this.close), this.on("click", {
-                columnBackSelector: this.close
-            }), this.on(document, "dataTwitterUsers", this.handleTwitterUsers), this.userIds = this.attr.tweetSummary[this.attr.type], "retweeters" === this.attr.type ? (e = "Retweeted", i = this.attr.tweetSummary.retweeters_count) : (e = "Favorited", i = this.attr.tweetSummary.favoriters_count), t = parseInt(i, 10) > 1 ? TD.i("{{action}} {{n}} times", {
-                n: this.prettyNumber(i),
-                action: e
-            }) : TD.i("{{action}} once", {
-                action: e
-            }), this.renderParams = {
-                title: t,
-                columntitle: TD.i("Tweet"),
-                headerLinkClass: this.attr.headerLinkClass,
-                withUserMenu: !0
-            }, this.render(this.attr.templateName, this.renderParams), this.requestId = _.uniqueId("twitterUsers"), this.trigger("uiNeedsTwitterUsers", {
-                requestId: this.requestId,
-                userIds: this.userIds
-            })
-        })
-    };
-    return t(n, e, i, s)
-}), define("ui/with_focus", [], function() {
-    function t() {
-        this.focusRequest = function() {
-            this.trigger("uiFocusRequest", {
-                id: this.focusId
-            })
-        }, this.focusRelease = function() {
-            this.trigger("uiFocusRelease", {
-                id: this.focusId
-            })
-        }, this.handleFocus = function(t, e) {
-            this.hasFocus = e.id === this.focusId ? !0 : !1
-        }, this.whenHasFocus = function(t) {
-            return function() {
-                return this.hasFocus ? t.apply(this, arguments) : void 0
-            }.bind(this)
-        }, this.getNewFocusId = function() {
-            return _.uniqueId("focus")
-        }, this.after("teardown", function() {
-            this.hasFocus && this.trigger("uiFocusRelease", {
-                id: this.focusId
-            })
-        }), this.after("initialize", function() {
-            this.focusId = this.attr.focusId || this.getNewFocusId(), this.hasFocus = !1, this.on(document, "uiFocus", this.handleFocus), this.attr.autoFocus === !0 && this.focusRequest()
-        })
-    }
-    return t
-}), define("ui/with_dropdown", ["require", "flight/lib/compose", "ui/with_template", "ui/with_focus"], function(t) {
-    function e() {
-        i.mixin(this, [s, n]), this.defaultAttrs({
-            dropdownContentSelector: ".js-dropdown-content",
-            isSelectableClass: "is-selectable",
-            isSelectableSelector: ".is-selectable",
-            isSelectedClass: "is-selected",
-            isSelectedSelector: ".is-selected",
-            dropdownOptions: {
-                position: [],
-                toggle: !1
-            },
-            dropdownPositions: {
-                offsetLeft: "pos-l",
-                offsetRight: "pos-r",
-                underLeftIcon: "pos-r-under-icon",
-                verticalRight: "pos-br"
-            }
-        }), this.after("initialize", function() {
-            this.on(document, "uiDropdownShowing uiDetailViewOpening uiKeyEscape", this.teardownCurrentDropdown), this.dropdownFocusId = this.getNewFocusId(), this.on(document, "uiKeyEnter uiKeySpace", this.whenHasDropdownFocus(this.clickSelectedActionable)), this.on(document, "uiKeyUp", this.whenHasDropdownFocus(this.makeHandleChangeSelectionIndexBy(-1))), this.on(document, "uiKeyDown", this.whenHasDropdownFocus(this.makeHandleChangeSelectionIndexBy(1))), this.on(document, "uiKeyRight uiKeyLeft", this.whenHasDropdownFocus(this.jumpIntoDropdown))
-        }), this.renderDropdown = function(t, e, i, s) {
-            if (!t || !t.length) throw new Error("Please supply a node to render dropdown with.");
-            if (!e) throw new Error("Please supply a template.");
-            i = i || {}, s = _.defaults(s || {}, this.attr.dropdownOptions);
-            var n = _.uniqueId("dropdown");
-            if (this.dropdownIsOpen()) return s.toggle ? (this.trigger("uiDropdownToggling", {
-                id: n
-            }), this.teardownCurrentDropdown()) : this.trigger("uiDropdownAlreadyOpen", {
-                id: n
-            });
-            this.trigger("uiDropdownShowing", {
-                id: n
-            });
-            var o = e;
-            "string" == typeof e && (o = this.renderTemplate(e, i));
-            var r = this.renderTemplate("menus/dropdown", s);
-            r.find(this.attr.dropdownContentSelector).append(o), t.after(r), this.currentDropdown = {
-                $el: r,
-                id: n
-            }, this.attachDropdownInteractions(r, s), this.parentFocusId = this.focusId, this.focusId = this.dropdownFocusId, this.focusRequest(), this.on(document, "click", this.teardownCurrentDropdown), this.trigger("uiDropdownShown", {
-                id: n
-            })
-        }, this.attachDropdownInteractions = function(t) {
-            this.on(t, "mouseleave", this.removeCurrentSelection), this.on(t, "mouseover", {
-                isSelectableSelector: this.handleChangeSelectionToTarget
-            }), this.on(t, "click", this.cancelEventIfNotFromSelectable);
-            var e = t.find(this.attr.isSelectableSelector),
-                i = e.filter(this.attr.isSelectedSelector),
-                s = e.index(i);
-            this.currentDropdown.$selectables = e, this.currentDropdown.selectedIndex = s, s > -1 && this.changeSelectionToIndex(s)
-        }, this.teardownCurrentDropdown = function(t, e) {
-            if (t = t || {}, e = e || {}, this.dropdownIsOpen()) {
-                if (e.id === this.currentDropdown.id) return;
-                this.trigger("uiDropdownHiding", {
-                    id: this.currentDropdown.id
-                }), this.focusRelease(), this.focusId = this.parentFocusId;
-                var i = this.currentDropdown.$el;
-                this.off(document, "click", this.teardownCurrentDropdown), this.off(i, "mouseleave", this.removeCurrentSelection), this.off(i, "mouseover"), this.off(i, "click", this.cancelEventIfNotFromSelectable), this.currentDropdown.$el.remove();
-                var s = this.currentDropdown.id;
-                this.currentDropdown = null, this.trigger("uiDropdownHidden", {
-                    id: s
-                })
-            }
-        }, this.clickSelectedActionable = function() {
-            this.currentDropdown.selectedIndex > -1 && this.currentDropdown.$selectables.eq(this.currentDropdown.selectedIndex).find("[data-action]").first().click()
-        }, this.changeSelection = function(t) {
-            var e = $(t),
-                i = this.currentDropdown.$selectables.index(e.get(0));
-            this.removeCurrentSelection(), i > -1 && (this.currentDropdown.$selectables.eq(i).addClass(this.attr.isSelectedClass), this.currentDropdown.selectedIndex = i)
-        }, this.changeSelectionToIndex = function(t) {
-            if (0 > t) return this.removeCurrentSelection();
-            var e = this.currentDropdown.$selectables.eq(t);
-            this.changeSelection(e)
-        }, this.handleChangeSelectionToTarget = function(t, e) {
-            this.changeSelection(e.el)
-        }, this.makeHandleChangeSelectionIndexBy = function(t) {
-            return function(e) {
-                e.stopPropagation();
-                var i = this.getNewSelectedIndex(t);
-                this.changeSelectionToIndex(i)
-            }
-        }, this.removeCurrentSelection = function() {
-            this.currentDropdown.$selectables.eq(this.currentDropdown.selectedIndex).removeClass(this.attr.isSelectedClass), this.currentDropdown.selectedIndex = -1
-        }, this.getNewSelectedIndex = function(t) {
-            "undefined" == typeof t && (t = 1);
-            var e = this.currentDropdown.selectedIndex;
-            if (0 === t) return e;
-            var i = this.currentDropdown.$selectables.length,
-                s = (e + t) % i;
-            return 0 > e ? t > 0 ? 0 : i - 1 : 0 > s ? i + s : s
-        }, this.whenHasDropdownFocus = function(t) {
-            return this.whenHasFocus(function() {
-                return this.focusId === this.dropdownFocusId ? t.apply(this, arguments) : void 0
-            })
-        }, this.jumpIntoDropdown = function() {
-            -1 === this.currentDropdown.selectedIndex && this.changeSelectionToIndex(0)
-        }, this.cancelEventIfNotFromSelectable = function(t) {
-            var e = this.currentDropdown.$el,
-                i = $(t.target).closest(this.attr.isSelectableSelector, e);
-            i.length || (event.stopPropagation(), event.preventDefault())
-        }, this.dropdownIsOpen = function() {
-            return !!this.currentDropdown && !! this.currentDropdown.$el
-        }
-    }
-    var i = t("flight/lib/compose"),
-        s = t("ui/with_template"),
-        n = t("ui/with_focus");
-    return e
-}), define("ui/drag_drop/with_drag_drop", ["require"], function() {
-    function t() {
-        this.defaultAttrs({
-            eventMap: {
-                uiDragStart: "dragstart",
-                uiDragEnd: "dragend",
-                mousedown: "predrag"
-            },
-            dropTargetClass: "with-drop-target",
-            draggableSelector: ".is-draggable"
-        }), this.setupDragDrop = function(t) {
-            t.type || (t.type = ["*"]), "string" == typeof t.type && (t.type = [t.type]), _.contains(t.type, "*") && (t.wantsAll = !0), "undefined" != typeof t.indicateDrop && (this.indicateDrop = !! t.indicateDrop), t.drop && this.indicateDrop !== !1 && (this.indicateDrop = !0), this.listeners.push(t)
-        }, this.hasSetupDragDrop = function() {
-            return this.listeners.length > 0
-        }, this.wantsDragType = function(t) {
-            return this.listeners.some(function(e) {
-                return e.wantsAll || _.contains(e.type, t)
-            }.bind(this))
-        }, this.notifyListeners = function(t, e) {
-            this.listeners.forEach(function(i) {
-                if (i.wantsAll || _.contains(i.type, e.type)) {
-                    var s = i[t.type] || i[this.attr.eventMap[t.type]];
-                    s && "function" == typeof s && s.call(i.context || this, t, e)
-                }
-            }.bind(this))
-        }, this.saveDragState = function(t) {
-            return function(e, i) {
-                return this.dragDropState = {
-                    active: !0,
-                    data: i
-                }, t.apply(this, [].slice.call(arguments))
-            }
-        }, this.clearDragState = function(t) {
-            return function() {
-                return this.dragDropState = this.dragDropStateInit, t.apply(this, [].slice.call(arguments))
-            }
-        }, this.retrieveDragState = function(t) {
-            return function(e) {
-                return t.call(this, e, this.dragDropState.data)
-            }
-        }, this.retrieveAndNotify = function() {
-            return this.retrieveDragState(this.notifyListeners)
-        }, this.extractDataFromEvent = function(t) {
-            var e = $(t.target).attr("data-drag-type"),
-                i = t.target.tagName.toLowerCase();
-            return e = e || i, {
-                type: e,
-                el: t.target
-            }
-        }, this.whenActive = function(t) {
-            return function() {
-                var e = this.dragDropState.active && this.wantsDragType(this.dragDropState.data.type);
-                return e ? t.apply(this, arguments) : void 0
-            }.bind(this)
-        }, this.whenSetup = function(t) {
-            return function() {
-                return this.hasSetupDragDrop() ? t.apply(this, arguments) : void 0
-            }.bind(this)
-        }, this.whenSetupAndActive = function(t) {
-            return this.whenSetup(this.whenActive(t))
-        }, this.before("initialize", function() {
-            this.listeners = [], this.dragDropState = this.dragDropStateInit = {
-                active: !1,
-                data: {}
-            }, this.indicateDrop = !0, this.dragDepth = 0
-        }), this.after("initialize", function() {
-            this.on(document, "uiDragStart", this.whenSetup(this.saveDragState(this.notifyListeners))), this.on(document, "uiDragEnd", this.whenSetup(function() {
-                this.dragDepth = 0, this.clearDragState(this.notifyListeners).apply(this, arguments)
-            })), this.on("drop", this.whenSetupAndActive(function(t) {
-                t.preventDefault(), this.dragDepth = 0, this.retrieveAndNotify().apply(this, arguments)
-            })), this.on("dragenter", this.whenSetupAndActive(function() {
-                this.dragDepth += 1, 1 === this.dragDepth && this.retrieveAndNotify().apply(this, [].slice.call(arguments))
-            })), this.on("dragleave", this.whenSetupAndActive(function() {
-                this.dragDepth -= 1, this.dragDepth <= 0 && (this.dragDepth = 0, this.retrieveAndNotify().apply(this, [].slice.call(arguments)))
-            })), this.on("dragover", this.whenSetupAndActive(function(t) {
-                this.indicateDrop === !0 && t.preventDefault(), this.retrieveAndNotify().apply(this, [].slice.call(arguments))
-            })), this.on("mousedown", {
-                draggableSelector: this.whenSetup(function(t, e) {
-                    var i = this.extractDataFromEvent({
-                        target: e.el
-                    });
-                    this.notifyListeners(t, i)
-                })
-            })
-        })
-    }
-    return t
-}), define("ui/with_spinner_button", [], function() {
-    var t = function() {
-        this.defaultAttrs({
-            spinnerButtonSelector: ".js-spinner-button",
-            spinnerButtonActiveSelector: ".js-spinner-button-active",
-            spinnerButtonActiveClass: "spinner-button-is-active",
-            spinnerButtonDisabledClass: "is-disabled",
-            spinnerButtonHiddenClass: "is-hidden"
-        }), this.spinnerButtonEnable = function() {
-            var t = this.select("spinnerButtonSelector"),
-                e = this.select("spinnerButtonActiveSelector");
-            t.addClass(this.attr.spinnerButtonDisabledClass), t.addClass(this.attr.spinnerButtonActiveClass), e.removeClass(this.attr.spinnerButtonHiddenClass)
-        }, this.spinnerButtonDisable = function() {
-            var t = this.select("spinnerButtonSelector"),
-                e = this.select("spinnerButtonActiveSelector");
-            t.removeClass(this.attr.spinnerButtonDisabledClass), t.removeClass(this.attr.spinnerButtonActiveClass), e.addClass(this.attr.spinnerButtonHiddenClass)
-        }
-    };
-    return t
-}), define("ui/with_add_to_customtimeline", ["flight/lib/compose", "ui/with_spinner_button", "ui/with_template"], function(t, e, i) {
-    function s() {
-        t.mixin(this, [e, i]), this.eventIsForCustomTimeline = function(t, e) {
-            var i = this.select("addToCustomTimelineInputSelector"),
-                s = TD.util.extractTweetIdFromPermalink(i.val());
-            return e.action.tweetId === s && e.action.id === i.data(this.attr.customTimelineIdDataAttr)
-        }, this.defaultAttrs({
-            addToCustomTimelineSelector: ".js-add-to-customtimeline",
-            addToCustomTimelineTemplate: "column/add_to_customtimeline",
-            addToCustomTimelineInputSelector: ".js-add-to-customtimeline-input",
-            addToCustomTimelineButtonSelector: ".js-add-to-customtimeline-button",
-            customTimelineIdDataAttr: "customtimeline-id"
-        }), this.renderAddToCustomTimeline = function(t, e) {
-            var i = this.toHtml(this.attr.addToCustomTimelineTemplate, {
-                accountKey: t,
-                customTimelineId: e
-            });
-            this.select("addToCustomTimelineSelector").html(i).removeClass("is-hidden"), this.on("uiInputSubmit", {
-                addToCustomTimelineInputSelector: this.addTweetToCustomTimeline
-            }), this.on("click", {
-                addToCustomTimelineButtonSelector: this.addTweetToCustomTimeline
-            }), this.on(document, "dataAddTweetToCustomTimelineSuccess", function(t, e) {
-                this.eventIsForCustomTimeline(t, e) && (this.spinnerButtonDisable(), e.result.response.errors && e.result.response.errors.length ? TD.controller.progressIndicator.addMessage(TD.i("Unable to add that Tweet")) : this.select("addToCustomTimelineInputSelector").val(""))
-            }), this.on("dataAddTweetToCustomTimelineError", function(t, e) {
-                this.eventIsForCustomTimeline(t, e) && (this.spinnerButtonDisable(), TD.controller.progressIndicator.addMessage(TD.i("Unable to add that Tweet")))
-            })
-        }, this.addTweetToCustomTimeline = function() {
-            var t = this.select("addToCustomTimelineInputSelector"),
-                e = t.data("account-key"),
-                i = t.data("customtimeline-id"),
-                s = t.val(),
-                n = TD.util.extractTweetIdFromPermalink(s);
-            n ? (this.trigger(document, "uiAddTweetToCustomTimeline", {
-                account: e,
-                id: i,
-                tweetId: n
-            }), this.spinnerButtonEnable()) : (TD.controller.progressIndicator.addMessage(TD.i("Can't recognize Tweet URL")), this.spinnerButtonDisable())
-        }
-    }
-    return s
-}), define("ui/with_edit_customtimeline", ["flight/lib/compose", "ui/with_template"], function(t, e) {
-    function i() {
-        t.mixin(this, [e]), this.defaultAttrs({
-            editCustomTimelineSelector: ".js-edit-customtimeline",
-            editCustomTimelineTemplate: "column/edit_customtimeline",
-            customTimelineTitleSelector: ".js-customtimeline-title",
-            customTimelineDescSelector: ".js-customtimeline-desc"
-        }), this.after("initialize", function() {
-            this.on(this.$node, "change uiInputSubmit", {
-                customTimelineTitleSelector: this.saveCustomTimelineState,
-                customTimelineDescSelector: this.saveCustomTimelineState
-            })
-        }), this.renderEditCustomTimeline = function(t, e) {
-            var i = this.column.getCustomTimeline();
-            if (i) {
-                var s = this.toHtml(this.attr.editCustomTimelineTemplate, {
-                    customTimelineName: i.name,
-                    customTimelineDescription: i.description,
-                    withTitle: t,
-                    withDescription: e
-                });
-                this.$editCustomTimeline = this.select("editCustomTimelineSelector"), this.$editCustomTimeline.html(s)
-            }
-        }, this.saveCustomTimelineState = function() {
-            var t = this.column.getCustomTimeline(),
-                e = this.select("customTimelineTitleSelector").val(),
-                i = this.select("customTimelineDescSelector").val(),
-                s = void 0 !== e && e !== t.name,
-                n = void 0 !== i && i !== t.description;
-            (s || n) && (this.trigger(document, "uiUpdateCustomTimeline", {
-                    account: t.account.getKey(),
-                    id: t.id,
-                    name: e,
-                    description: i
-                }), this.on(document, "dataCustomTimelineSuccess", function() {
-                    var t;
-                    this.off(document, "dataCustomTimelineSuccess"), s && n ? t = TD.i("Custom timeline updated") : s ? t = TD.i("Title updated") : n && (t = TD.i("Description updated")), t && TD.controller.progressIndicator.addMessage(t)
-                }))
-        }
-    }
-    return i
-}), define("util/with_rebroadcast", [], function() {
-    function t() {
-        this.rebroadcast = function(t) {
-            return function(e) {
-                return this._isRebroadcasting ? void 0 : (this._isRebroadcasting = !0, this.trigger(e, t.apply(this, [].slice.call(arguments))), this._isRebroadcasting = !1, e.stopPropagation(), !1)
-            }.bind(this)
-        }
-    }
-    return t
-}), define("ui/with_will_animate", [], function() {
-    var t = _.memoize(function() {
-        var t = window.navigator.userAgent,
-            e = t.match(/Chrome\/([\d]+)\./),
-            i = t.match(/AppleWebKit\/([\d]+)\./);
-        return e && parseInt(e[1], 10) >= 35 ? !0 : "mac" === TD.util.getAppEnv() && i && parseInt(i[1], 10) >= 537 ? !0 : !1
-    });
-    return function() {
-        this.applyWillAnimate = function(e) {
-            t() && $(e).addClass("will-animate")
-        }
-    }
-}), define("ui/column", ["require", "flight/lib/component", "ui/asynchronous_form", "ui/custom_timeline_description", "ui/social_proof_for_tweet", "ui/with_column_selectors", "ui/with_template", "ui/with_transitions", "ui/with_dropdown", "ui/drag_drop/with_drag_drop", "ui/with_add_to_customtimeline", "ui/with_edit_customtimeline", "util/with_rebroadcast", "util/with_teardown", "ui/with_will_animate"], function(t) {
-    function e() {
-        this.defaultAttrs({
-            columnMessageSelector: ".js-column-message",
-            columnMessageTemplate: "column/column_message",
-            filterErrorTemplate: "column/column_filter_error",
-            filterErrorClass: "filter-error",
-            showDetailViewClass: "is-shifted-1",
-            showSocialProofClass: "is-shifted-2",
-            socialProofSelector: ".js-column-social-proof",
-            columnStateDefault: "default",
-            columnStateDetailView: "detailView",
-            columnStateSocialProof: "socialProof",
-            columnScrollerIsAnimatingClass: "is-column-scroller-animating",
-            isNewClass: "is-new",
-            chirpSelector: ".js-stream-item",
-            tweetActionsSelector: ".js-tweet-actions",
-            tweetActionsVisibleClass: "is-visible",
-            customTimelineDescriptionSelector: ".js-customtimeline-description",
-            shareColumnSelector: ".js-share-column",
-            columnPausedTemplate: "column/column_paused_message",
-            pauseMessageSelector: ".js-paused-message",
-            columnUnpauseSelector: ".js-unpause-column",
-            focusId: null,
-            tweetImpressionTrackingPeriod: 250
-        }), this.setColumnState = function(t) {
-            switch (this.$node.removeClass([this.attr.showDetailViewClass, this.attr.columnStateDetailViewClass, this.attr.showSocialProofClass, this.attr.columnStateSocialProofClass].join(" ")), t) {
-                case this.attr.columnStateDetailView:
-                    this.$node.addClass(this.attr.showDetailViewClass), this.$node.addClass(this.attr.columnStateDetailViewClass);
-                    break;
-                case this.attr.columnStateSocialProof:
-                    this.$node.addClass(this.attr.showSocialProofClass), this.$node.addClass(this.attr.columnStateSocialProofClass)
-            }
-        }, this.handleDetailViewActive = function() {
-            this.setColumnState(this.attr.columnStateDetailView), this.scribeAllChirpsHidden()
-        }, this.handleDetailViewClosed = function() {
-            this.setColumnState(this.attr.columnStateDefault), this.column.detailViewComponent = null
-        }, this.handleCloseDetailView = function() {
-            this.column.detailViewComponent.destroy()
-        }, this.handleShowSocialProof = function(t, e) {
-            o.attachTo(this.$socialProofContainer, {
-                type: e.type,
-                tweetSummary: e.tweetSummary
-            }), this.setColumnState(this.attr.columnStateSocialProof)
-        }, this.handleSocialProofClosed = function() {
-            this.setColumnState(this.attr.columnStateDetailView)
-        }, this.handleCloseSocialProof = function() {
-            this.trigger(this.$socialProofContainer, "uiSocialProofForTweetClose")
-        }, this.handleUiRemoveColumn = function() {
-            this.scribeAllChirpsHidden(), this.teardown()
-        }, this.handleShareColumnButtonClick = function(t, e) {
-            var i = $(e.el);
-            this.toggleShareMenu(t, i)
-        }, this.toggleShareMenu = function(t, e) {
-            t.preventDefault(), t.stopPropagation();
-            var i = this.attr.dropdownPositions;
-            this.renderDropdown(e, "menus/column_share", {
-                isEmbeddable: this.column.isEmbeddable(),
-                isShareable: this.column.isShareable(),
-                isViewable: this.column.isViewable()
-            }, {
-                position: [i.offsetRight, i.underLeftIcon].join(" "),
-                toggle: !0
-            })
-        }, this.getCustomTimelineDataForPermalink = function() {
-            var t = this.column.getCustomTimelineFeed(),
-                e = t.getMetadata(),
-                i = TD.util.deMentionify(TD.cache.names.getScreenName(e.ownerId)),
-                s = TD.cache.names.getCustomTimelineName(e.id, e.ownerId);
-            if (!i) throw new Error("Could not get username from name cache.");
-            return {
-                username: i,
-                name: s,
-                id: e.id.replace(/[^\d]*/, "")
-            }
-        }, this.getCustomTimelinePermalinkURL = function() {
-            var t = this.getCustomTimelineDataForPermalink(),
-                e = this.toHtmlFromRaw("https://twitter.com/{{username}}/timelines/{{id}}", {
-                    username: t.username,
-                    id: t.id
-                });
-            return e
-        }, this.getCustomTimelinePermalinkURLWithDescription = function() {
-            var t = this.getCustomTimelineDataForPermalink(),
-                e = this.toHtmlFromRaw("“{{name}}” - @{{username}} “https://twitter.com/{{username}}/timelines/{{id}}”", {
-                    name: t.name,
-                    username: t.username,
-                    id: t.id
-                });
-            return e
-        }, this.handleViewTimeline = function() {
-            var t = this.getCustomTimelinePermalinkURL();
-            TD.util.openURL(t)
-        }, this.handleReferenceTimeline = function() {
-            var t = this.column.getColumnType();
-            "col_customtimeline" === t ? this.trigger("uiComposeTweet", {
-                appendText: this.getCustomTimelinePermalinkURLWithDescription()
-            }) : this.trigger("uiNeedsSerializedColumn", {
-                columnId: this.columnKey
-            })
-        }, this.handleShowingColumnOptions = function() {
-            var t = this.select("columnMessageSelector");
-            t.css({
-                opacity: 0
-            }), this.transitionCollapse(t)
-        }, this.handleColumnOptionsShown = function() {
-            s.attachTo(this.$columnOptions)
-        }, this.handleHidingColumnOptions = function() {
-            this.trigger(this.$columnOptions, "uiDestroyAsynchronousForm"), this.renderColumnMessage()
-        }, this.handleColumnOptionsHidden = function() {
-            var t = this.select("columnMessageSelector");
-            t.animate({
-                opacity: 1
-            }, 150, "easeInOutQuad")
-        }, this.renderColumnMessage = function() {
-            var t, e = this.select("columnMessageSelector");
-            this.column.hasActiveSearchFilters() ? (this.column.hasFilterError() ? (t = this.renderTemplate(this.attr.filterErrorTemplate), e.addClass(this.attr.filterErrorClass)) : (t = this.renderTemplate(this.attr.columnMessageTemplate, {
-                action: this.column.hasActiveActionFilters() && !this.column.isSingleActionTypeColumn(),
-                content: this.column.hasActiveContentFilters(),
-                user: this.column.hasActiveUserFilters(),
-                engagement: this.column.hasActiveEngagementFilters()
-            }), e.removeClass(this.attr.filterErrorClass)), this.animateElementContentHeight(e, t)) : this.animateElementContentHeight(e, "")
-        }, this.handleColumnPaused = function() {
-            var t = this.select("pauseMessageSelector"),
-                e = this.renderTemplate(this.attr.columnPausedTemplate);
-            this.animateElementContentHeight(t, e)
-        }, this.handleColumnUnpaused = function() {
-            var t = this.select("pauseMessageSelector");
-            this.animateElementContentHeight(t, ""), this.trigger("uiReadStateChange", {
-                read: !0
-            })
-        }, this.handleSettingsChange = function(t, e) {
-            (e.font_size || e.column_width) && (this.createNewHeightCache(), this.scribeTweetImpressions())
-        }, this.handleMediaPreviewChange = function() {
-            this.createNewHeightCache(), this.scribeTweetImpressions()
-        }, this.createNewHeightCache = function() {
-            this.chirpHeightCache = new TD.cache.LRUQueue(200)
-        }, this.handleColumnUnpauseClick = function() {
-            this.column.refreshColumn(500)
-        }, this.moveColumnTop = function(t, e) {
-            if (0 !== t) {
-                var i = this.select("scrollContainerSelector"),
-                    s = this.select("columnUpdateGlow");
-                e = e || void 0 === e, this.targetTopPosition += t, e ? (this.transitionTop(i, this.attr.columnScrollerIsAnimatingClass, this.targetTopPosition), this.transitionTop(s, this.attr.columnScrollerIsAnimatingClass, this.targetTopPosition)) : (i.css("top", this.targetTopPosition), s.css("top", this.targetTopPosition))
-            }
-        }, this.getColumnTopError = function() {
-            var t, e = this.select("scrollContainerSelector"),
-                i = 0;
-            return e.hasClass(this.attr.columnScrollerIsAnimatingClass) || (t = this.select("columnOptionsContainerSelector").height(), i = t - this.targetTopPosition), i
-        }, this.fixColumnTop = function() {
-            this.moveColumnTop(this.getColumnTopError(), !1)
-        }, this.handleShowDetailView = function(t, e) {
-            var i, s;
-            e.columnKey === this.columnKey && e.chirpId && (i = this.column.findChirp(e.chirpId), s = this.column.findMostInterestingChirp(e.chirpId), this.trigger("uiColumnFocus", {
-                columnKey: e.columnKey
-            }), s instanceof TD.services.TwitterAction || $.publish("chirp/action", ["viewDetails", s, i, this.column]))
-        }, this.handleShowUserFilter = function() {
-            this.trigger(this.$columnOptions, "uiShowUserFilter")
-        }, this.handleShowContentFilter = function() {
-            this.trigger(this.$columnOptions, "uiShowContentFilter")
-        }, this.handleUpdateSearchFilter = function(t, e) {
-            this.column.updateSearchFilter(e)
-        }, this.handleUpdateMediaPreview = function(t, e) {
-            this.column.setMediaPreviewSize(e.value)
-        }, this.handleColumnUpdating = function() {
-            this.trigger(this.$columnOptions, "uiWaitingForAsyncResponse")
-        }, this.handleColumnUpdated = function() {
-            this.trigger(this.$columnOptions, "uiReceivedAsyncResponse")
-        }, this.handleMarkAllRead = function() {
-            this.column.markAllMessagesAsRead()
-        }, this.handleColumnClear = function() {
-            this.column.clear(), this.trigger("uiClearColumnAction", {
-                columnId: this.column.model.getKey()
-            });
-        }, this.handleSerializedColumn = function(t, e) {
-            if (e.columnId === this.columnKey) {
-                var i = this.toHtmlFromRaw("Check out this TweetDeck column: “{{url}}”", {
-                    name: this.column.model.getTitle(),
-                    url: e.url
-                });
-                this.trigger("uiComposeTweet", {
-                    appendText: i
-                })
-            }
-        }, this.handleReadStateChange = function(t, e) {
-            var i = this.select("columnHeaderSelector");
-            e.columnKey = this.columnKey, this.column.isMessageColumn() ? e.read = !this.column.hasUnreadMessages() : this.$node.toggleClass(this.attr.isNewClass, !e.read), i.toggleClass(this.attr.isNewClass, !e.read)
-        }, this.handleColumnVisibilities = function(t, e) {
-            var i = this.column.visibility,
-                s = e[this.columnKey];
-            s && (this.column.visibility = s, i.visibleFraction !== s.visibleFraction && this.scribeTweetImpressions())
-        }, this.getChirpVerticalVisibileFraction = function(t, e) {
-            if (0 >= e) return 0;
-            var i = Math.min(this.scrollContainerHeight, Math.max(0, t)),
-                s = Math.min(this.scrollContainerHeight, Math.max(0, t + e)),
-                n = s - i;
-            return n / e
-        }, this.scribeTweetImpressions = function() {
-            var t = this.column.temporary || this.column.visibility.visibleFraction > .5,
-                e = this.$node.hasClass(this.attr.columnStateDetailViewClass) || this.$node.hasClass(this.attr.columnStateSocialProofClass);
-            if (TD.util.documentIsHidden() || e || !t) this.setAllChirpsHidden();
-            else {
-                var i = Date.now();
-                this.updateVisibleChirps(i), this.updateVisibleChirpsWithEndTimes(i), TD.controller.stats.tweetStreamImpression(this.column.getColumnType(), this.getChirpsToScribeTierTwo())
-            }
-            TD.controller.stats.tweetStreamImpression(this.column.getColumnType(), this.getChirpsToScribeTierThree(), !0), this.removeScribedChirpsFromVisibleChirps()
-        }, this.scribeAllChirpsHidden = function() {
-            this.setAllChirpsHidden(), TD.controller.stats.tweetStreamImpression(this.column.getColumnType(), this.getChirpsToScribeTierThree(), !0)
-        }, this.updateVisibleChirps = function(t) {
-            var e = !1;
-            this.scrollContainerHeight = this.$scrollContainer.height();
-            var i = null;
-            this.select("chirpSelector").each(function(s, n) {
-                var o = $(n),
-                    r = o.attr("data-key"),
-                    a = this.chirpHeightCache.get(r);
-                if (!a) {
-                    if (a = o.height(), 0 >= a) return;
-                    this.chirpHeightCache.enqueue(r, a)
-                }
-                var c;
-                c = null === i ? o.position().top : i + 1, i = c + a;
-                var h = this.getChirpVerticalVisibileFraction(c, a),
-                    l = h * (this.column.temporary ? 1 : this.column.visibility.visibleFraction);
-                if (0 >= l && e) return !1;
-                if (l > 0) {
-                    e = !0;
-                    var u = this.visibleChirpsTierTwo[r];
-                    u || (u = {
-                        scribed: !1
-                    }), this.visibleChirpsTierTwo[r] = u
-                }
-                if (l > .5) {
-                    var d = this.visibleChirpsTierThree[r];
-                    d || (d = {
-                        scribed: !1,
-                        visibilityStart: t
-                    }), d.knownVisible = !0, this.visibleChirpsTierThree[r] = d
-                }
-            }.bind(this))
-        }, this.updateVisibleChirpsWithEndTimes = function(t) {
-            Object.keys(this.visibleChirpsTierThree).forEach(function(e) {
-                var i = this.visibleChirpsTierThree[e];
-                i.knownVisible || (i.visibilityEnd = t), this.visibleChirpsTierThree[e] = i
-            }, this)
-        }, this.getChirpsToScribeTierThree = function() {
-            var t = [];
-            return Object.keys(this.visibleChirpsTierThree).forEach(function(e) {
-                var i, s = this.visibleChirpsTierThree[e];
-                s.visibilityStart && s.visibilityEnd && (s.visibilityEnd - s.visibilityStart > 500 && (i = this.column.findMostInterestingChirp(e), i instanceof TD.services.TwitterStatus && t.push(i.getScribeItemData(s))), s.scribed = !0, this.visibleChirpsTierThree[e] = s)
-            }, this), t
-        }, this.getChirpsToScribeTierTwo = function() {
-            var t = [];
-            return Object.keys(this.visibleChirpsTierTwo).forEach(function(e) {
-                var i, s = this.visibleChirpsTierTwo[e];
-                this.column.scribedImpressionIDs.get(e) || (i = this.column.findMostInterestingChirp(e), i instanceof TD.services.TwitterStatus && t.push(i.getScribeItemData(s)), this.column.scribedImpressionIDs.enqueue(e, !0)), s.scribed = !0, this.visibleChirpsTierTwo[e] = s
-            }, this), t
-        }, this.removeScribedChirpsFromVisibleChirps = function() {
-            Object.keys(this.visibleChirpsTierTwo).forEach(function(t) {
-                var e = this.visibleChirpsTierTwo[t];
-                e.scribed && delete this.visibleChirpsTierTwo[t]
-            }, this), Object.keys(this.visibleChirpsTierThree).forEach(function(t) {
-                var e = this.visibleChirpsTierThree[t];
-                e.scribed ? delete this.visibleChirpsTierThree[t] : (e.knownVisible = !1, this.visibleChirpsTierThree[t] = e)
-            }, this)
-        }, this.setAllChirpsHidden = function() {
-            var t = Date.now();
-            Object.keys(this.visibleChirpsTierThree).forEach(function(e) {
-                this.visibleChirpsTierThree[e].visibilityEnd = t
-            }, this)
-        }, this.getAllCustomTimelineData = function() {
-            var t = this.column.getCustomTimelineFeed(),
-                e = this.column.getCustomTimeline(),
-                i = t.getMetadata(),
-                s = e.account.getKey(),
-                n = TD.controller.feedManager.getPoller(t.getKey());
-            return {
-                feed: t,
-                customTimeline: e,
-                metadata: i,
-                account: s,
-                poller: n
-            }
-        }, this.customTimelineActionWasMe = function(t) {
-            var e = this.column.getCustomTimelineFeed();
-            if (e) {
-                var i = e.getMetadata();
-                if (i) return t.action.id === i.id
-            }
-        }, this.refreshCustomTimelineFeed = function(t, e) {
-            if (this.customTimelineActionWasMe(e)) {
-                var i = this.getAllCustomTimelineData();
-                i.poller.refresh(!0, !0)
-            }
-        }, this.removeChripFromCustomTimelineFeed = function(t, e) {
-            if (this.customTimelineActionWasMe(e)) {
-                var i = this.getAllCustomTimelineData();
-                i.poller.removeWhere(function(t) {
-                    return t.id === e.action.tweetId
-                })
-            }
-        }, this.transformRemoveTweetFromCustomTimeline = function(t, e) {
-            var i = this.getAllCustomTimelineData();
-            return {
-                id: i.metadata.id,
-                tweetId: e.tweetId,
-                account: i.account
-            }
-        }, this.isOfMetaType = function(t) {
-            if (!this.column || !this.column.getColumnType) return !1;
-            var e = this.column.getColumnType();
-            return e === TD.util.columnUtils.columnMetaTypes[t]
-        }, this.addDropTargetClass = function() {
-            this.$node.addClass(this.attr.dropTargetClass)
-        }, this.removeDropTargetClass = function() {
-            this.$node.removeClass(this.attr.dropTargetClass)
-        }, this.after("initialize", function() {
-            this.applyWillAnimate(this.$node), this.columnKey = this.$node.data("column"), this.column = TD.controller.columnManager.get(this.columnKey), this.visibleChirpsTierTwo = {}, this.visibleChirpsTierThree = {};
-            var t, e, i, s = this.column.getCustomTimelineFeed(),
-                o = this.column.isOwnCustomTimeline();
-            o && (t = s.getMetadata(), e = t.id, i = TD.storage.Account.generateKeyFor("twitter", t.ownerId)), this.targetTopPosition = 0, this.$socialProofContainer = this.select("socialProofSelector"), this.$columnOptions = this.select("columnOptionsSelector"), this.$scrollContainer = this.select("scrollContainerSelector"), this.createNewHeightCache(), this.renderColumnMessage(), this.attr.tweetImpressionTrackingPeriod > 0 && (this.scribeTweetImpressions = _.throttle(this.scribeTweetImpressions.bind(this), this.attr.tweetImpressionTrackingPeriod)), this.setupDragDrop({
-                type: "tweet",
-                indicateDrop: !1,
-                predrag: function(t, e) {
-                    $(e.el).closest(this.attr.tweetActionsSelector).addClass(this.attr.tweetActionsVisibleClass)
-                },
-                dragend: function(t, e) {
-                    $(e.el).closest(this.attr.tweetActionsSelector).removeClass(this.attr.tweetActionsVisibleClass)
-                }
-            }), this.on("click", {
-                shareColumnSelector: this.handleShareColumnButtonClick,
-                columnUnpauseSelector: this.handleColumnUnpauseClick
-            }), this.on("uiViewTimeline", this.handleViewTimeline), this.on("uiReferenceTimeline", this.handleReferenceTimeline), this.on(document, "uiShowDetailView", this.handleShowDetailView), this.on("uiDetailViewActive", this.handleDetailViewActive), this.on("uiDetailViewClosed", this.handleDetailViewClosed), this.on("uiCloseDetailView", this.handleCloseDetailView), this.on("uiSocialProofForTweetClosed", this.handleSocialProofClosed), this.on("uiShowSocialProof", this.handleShowSocialProof), this.on("uiCloseSocialProof", this.handleCloseSocialProof), this.on("uiColumnOptionsShown", this.handleColumnOptionsShown), this.on("uiHidingColumnOptions", this.handleHidingColumnOptions), this.on("uiShowingColumnOptions", this.handleShowingColumnOptions), this.on("uiColumnOptionsHidden", this.handleColumnOptionsHidden), this.on("uiMarkAllMessagesRead", this.handleMarkAllRead), this.on("uiColumnClearAction", this.handleColumnClear), this.on("uiReadStateChange", this.handleReadStateChange), this.on("uiColumnPaused", this.handleColumnPaused), this.on("uiColumnUnpaused", this.handleColumnUnpaused), this.on("uiTransitionExpandStart", {
-                columnOptionsContainerSelector: function(t, e) {
-                    this.fixColumnTop(), this.moveColumnTop(e.delta)
-                }.bind(this)
-            }), this.on("uiAccordionTotalHeightChanged", {
-                columnOptionsContainerSelector: this.fixColumnTop
-            }), this.on("uiColumnUpdateSearchFilter", this.handleUpdateSearchFilter), this.on("uiColumnUpdateMediaPreview", this.handleUpdateMediaPreview), this.on("dataColumnUpdatingFilters dataColumnUpdatingFeed", this.handleColumnUpdating), this.on("dataColumnFiltersUpdated dataColumnFeedUpdated", this.handleColumnUpdated), this.on("uiRemoveColumn", this.handleUiRemoveColumn), this.on(document, "dataSerializedColumn", this.handleSerializedColumn), this.on(document, "dataSettingsValues", this.handleSettingsChange), this.on(document, "uiColumnUpdateMediaPreview", this.handleMediaPreviewChange), this.on(document, "uiFocus", function(t, e) {
-                this.hasFocus = e.id === this.attr.focusId, this.hasFocus && this.scribeTweetImpressions()
-            }), this.on(this.$scrollContainer, "scroll", this.scribeTweetImpressions), this.on(document, "uiColumnVisibilities", this.handleColumnVisibilities), this.on(document, "uiColumnChirpsChanged", function(t, e) {
-                e.id === this.columnKey && this.scribeTweetImpressions()
-            }), this.on("uiDetailViewClosed uiTransitionExpandEnd", this.scribeTweetImpressions), this.on(document, TD.util.visibilityChangeEventName(), function() {
-                this.scribeTweetImpressions()
-            }), this.on(window, "beforeunload", this.scribeAllChirpsHidden), o && (this.setupDragDrop({
-                type: "tweet",
-                indicateDrop: !0,
-                dragenter: this.addDropTargetClass,
-                dragleave: this.removeDropTargetClass,
-                dragend: this.removeDropTargetClass,
-                drop: function(t, e) {
-                    var i = this.getAllCustomTimelineData();
-                    this.trigger("uiAddTweetToCustomTimeline", {
-                        id: i.metadata.id,
-                        tweetId: $(e.el).attr("data-tweet-id"),
-                        account: i.account
-                    })
-                }
-            }), this.renderAddToCustomTimeline(i, e), this.select("columnContentSelector").addClass("with-add-by-url"), this.on(document, "dataAddTweetToCustomTimelineSuccess", this.refreshCustomTimelineFeed.bind(this)), this.on(document, "dataRemoveTweetFromCustomTimelineSuccess", this.removeChripFromCustomTimelineFeed.bind(this)), this.on("uiRemoveTweetFromCustomTimeline", this.rebroadcast(this.transformRemoveTweetFromCustomTimeline))), s && n.attachTo(this.select("customTimelineDescriptionSelector"), {
-                maxCharCount: 160,
-                withAutoComplete: !1,
-                customTimelineId: s.getMetadata().id,
-                isOwnCustomTimeline: this.column.isOwnCustomTimeline(),
-                readOnly: this.column.temporary,
-                accountKey: s.getAccountKey(),
-                teardownOn: this.childTeardownEvent
-            })
-        })
-    }
-    var i = t("flight/lib/component"),
-        s = t("ui/asynchronous_form"),
-        n = t("ui/custom_timeline_description"),
-        o = t("ui/social_proof_for_tweet"),
-        r = t("ui/with_column_selectors"),
-        a = t("ui/with_template"),
-        c = t("ui/with_transitions"),
-        h = t("ui/with_dropdown"),
-        l = t("ui/drag_drop/with_drag_drop"),
-        u = t("ui/with_add_to_customtimeline"),
-        d = t("ui/with_edit_customtimeline"),
-        m = t("util/with_rebroadcast"),
-        g = t("util/with_teardown"),
-        p = t("ui/with_will_animate");
-    return i(e, r, a, c, h, l, u, d, m, g, p)
-}), define("ui/alerts_form", ["flight/lib/component", "ui/with_template"], function(t, e) {
-    var i = function() {
-        this.defaultAttrs({
-            template: "column/alerts_form",
-            actionButton: "[data-action]",
-            summarySelector: ".js-alerts-summary",
-            summaryClass: "js-alerts-summary"
-        }), this.updateSummary = function() {
-            var t, e = this.column.model,
-                i = e.getHasNotification(),
-                s = e.getHasSound();
-            t = TD.i(i && s ? "sounds and popups" : i ? "popups" : s ? "sounds" : "none"), this.select("summarySelector").text(t)
-        }, this.toggleColumnSetting = function(t) {
-            var e, i = $(t.target).closest(this.attr.actionButton),
-                s = i.data("action"),
-                n = this.column.model;
-            switch (s) {
-                case "popups":
-                    e = !n.getHasNotification(), n.setHasNotification(e);
-                    break;
-                case "sound":
-                    e = !n.getHasSound(), n.setHasSound(e)
-            }
-            this.updateSummary()
-        }, this.after("initialize", function() {
-            var t = {
-                summaryText: "",
-                iconClass: "icon-info",
-                title: TD.i("Alerts"),
-                jsClass: this.attr.summaryClass,
-                options: [{
-                    action: "sound",
-                    option: TD.i("Sounds"),
-                    on: this.attr.column.model.getHasSound()
-                }]
-            };
-            return this.column = this.attr.column, this.column.getColumnType() === TD.util.columnUtils.columnMetaTypes.SCHEDULED ? void this.teardown() : (TD.controller.notifications.hasNotifications() && t.options.push({
-                action: "popups",
-                option: TD.i("Popups"),
-                on: this.column.model.getHasNotification()
-            }), this.$alertsForm = this.renderTemplate(this.attr.template, t), this.$node.append(this.$alertsForm), this.updateSummary(), this.on(this.$alertsForm, "click", {
-                actionButton: this.toggleColumnSetting
-            }), void 0)
-        })
-    };
-    return t(i, e)
 }), define("ui/with_accordion", ["flight/lib/compose", "ui/with_transitions"], function(t, e) {
     var i = function() {
         t.mixin(this, [e]), this.defaultAttrs({
@@ -5042,7 +4352,7 @@ function(t, e) {
                 i = TD.languages.getLanguageFromISOCode(e);
             t.userLanguage = i, t.allLanguages = _.sortBy(this.languages, function(t) {
                 return t.localized_name
-            }), $.extend(t, this.attr.renderOptions), this.render(this.attr.template, t), this.$matching = this.select("matchingSelector"), this.$excluding = this.select("excludingSelector"), this.$containing = this.select("containingSelector"), this.$writtenIn = this.select("writtenInSelector"), this.$retweets = this.select("retweetsSelector"), this.attr.searchFilter && this.attr.searchFilter.content && (this.$containing.val(this.attr.searchFilter.content.type), this.$retweets.val(this.attr.searchFilter.content.includeRTs ? "included" : "excluded"), this.$writtenIn.val(this.attr.searchFilter.content.lang)), this.on("change", this.handleChange), this.on("uiDestroyContentFilterForm", this.teardown)
+            }), $.extend(t, this.attr.renderOptions), this.render(this.attr.template, t), this.$matching = this.select("matchingSelector"), this.$excluding = this.select("excludingSelector"), this.$containing = this.select("containingSelector"), this.$writtenIn = this.select("writtenInSelector"), this.$retweets = this.select("retweetsSelector"), this.attr.searchFilter && this.attr.searchFilter.content && (this.$containing.val(this.attr.searchFilter.content.type), this.attr.searchFilter.content.includeRTs ? this.$retweets.val("included") : this.$retweets.val("excluded"), this.$writtenIn.val(this.attr.searchFilter.content.lang)), this.on("change", this.handleChange), this.on("uiDestroyContentFilterForm", this.teardown)
         })
     };
     return t(s, e, i)
@@ -5452,7 +4762,7 @@ function(t, e) {
                         o = {
                             id: n,
                             title: TD.i("Delete"),
-                            message: TD.i("Are you sure you want to delete this custom timeline?"),
+                            message: TD.i("Are you sure you want to delete this collection?"),
                             okLabel: TD.i("Delete"),
                             cancelLabel: TD.i("Cancel")
                         };
@@ -5525,41 +4835,38 @@ function(t, e) {
 }), define("td/UI/columns", ["ui/column_options"], function(t) {
     var e = window.TD || {};
     e.ui = e.ui || {}, window.TD = e, e.ui.columns = function() {
-        var i, s, n = 10,
-            o = 350,
-            r = 500,
-            a = 200,
-            c = 20,
-            h = {}, l = {}, u = {}, d = {}, m = {}, g = {}, p = 150,
-            f = 15,
-            w = "is-options-open",
-            C = "is-moving",
-            T = "is-focused",
-            v = ".is-focused",
-            S = "is-actionable",
-            y = "#container",
-            b = ".js-app-columns",
-            D = ".js-column-options",
-            A = ".js-column-scroller",
-            I = ".js-column",
-            F = ".js-column-header",
-            k = ".js-column-message",
-            E = ".js-detail-header",
-            M = ".js-chirp-container",
-            R = ".js-action-header-button",
-            x = ".is-minimalist",
-            P = "is-touch-tweet-container",
-            O = 150,
-            L = function(t) {
-                return V.getColumnElementByKey(t).find(F)
-            }, U = function(t) {
+        var i, s, n = 350,
+            o = 500,
+            r = 200,
+            a = 20,
+            c = {}, h = {}, l = {}, u = "is-options-open",
+            d = "is-moving",
+            m = "is-focused",
+            g = ".is-focused",
+            p = "is-actionable",
+            f = "#container",
+            w = ".js-app-columns",
+            C = ".js-column-options",
+            T = ".js-column-scroller",
+            S = ".js-column",
+            v = ".js-column-header",
+            b = ".js-column-message",
+            y = ".js-detail-header",
+            D = ".js-chirp-container",
+            A = ".js-action-header-button",
+            I = ".is-minimalist",
+            k = "is-touch-tweet-container",
+            F = 150,
+            E = function(t) {
+                return j.getColumnElementByKey(t).find(v)
+            }, M = function(t) {
                 var e = $(t.target).closest("[data-action]"),
                     i = e.data("action"),
-                    s = e.parents(I),
+                    s = e.parents(S),
                     n = s.attr("data-column");
                 switch (i) {
                     case "options":
-                        t.preventDefault(), s.hasClass(w) ? V.exitEditMode(n) : V.enterEditMode(n), t.stopPropagation();
+                        t.preventDefault(), s.hasClass(u) ? j.exitEditMode(n) : j.enterEditMode(n), t.stopPropagation();
                         break;
                     case "mark-all-read":
                         s.trigger("uiMarkAllMessagesRead", {
@@ -5581,40 +4888,40 @@ function(t, e) {
                     case "content-filter":
                     case "action-filter":
                     case "engagement-filter":
-                        V.enterEditMode(n, i);
+                        j.enterEditMode(n, i);
                         break;
                     case "edit-list":
                         t.preventDefault(), t.stopPropagation()
                 }
-            }, N = function(t) {
+            }, R = function(t) {
                 var i = $(t.currentTarget),
-                    s = (i.data("action"), i.parents(I)),
+                    s = (i.data("action"), i.parents(S)),
                     n = s.data("column");
                 e.ui.columns.setColumnToTop(n)
-            }, j = function() {
+            }, x = function() {
                 var t = $(this);
                 return t.offset().top + this.offsetHeight > 0 && t.offset().top < i.innerHeight()
-            }, B = function() {
+            }, O = function() {
                 var t = e.ui.updates.findParentArticle($(this)),
                     i = e.controller.columnManager.get(t.column),
                     s = i.updateIndex[t.statusKey];
                 t.element.replaceWith(s.render({
                     isTemporary: i.temporary
                 }))
-            }, H = _.debounce(function(t) {
-                t.find(x).filter(j).each(B)
-            }, O),
-            q = function(t, i) {
+            }, P = _.debounce(function(t) {
+                t.find(I).filter(x).each(O)
+            }, F),
+            U = function(t, i) {
                 var s, n, o = 0;
                 return function(r) {
                     e.util.isTouchDevice() && e.util.cancelFastClick();
-                    var a, c, h = r.timeStamp || (new Date).getTime(),
-                        l = i.scrollTop();
-                    d[t] = l, H(i), h - o > 200 && (o = h, n = r.currentTarget.scrollHeight, s = i.height()), c = (s + l) / n, c > .999 ? (o = 0, a = e.controller.columnManager.get(t), a.fetchUpdatesFromPoller()) : 0 === l && (e.ui.columns.unlockColumnScrolling(t), i.trigger("uiReadStateChange", {
+                    var a, c, l = r.timeStamp || (new Date).getTime(),
+                        u = i.scrollTop();
+                    h[t] = u, P(i), l - o > 200 && (o = l, n = r.currentTarget.scrollHeight, s = i.height()), c = (s + u) / n, c > .999 ? (o = 0, a = e.controller.columnManager.get(t), a.fetchUpdatesFromPoller()) : 0 === u && (e.ui.columns.unlockColumnFromElement(t), i.trigger("uiReadStateChange", {
                         read: !0
                     }))
                 }
-            }, z = function(t, e) {
+            }, L = function(t, e) {
                 var i = e.closest(".scroll-h"),
                     n = 100,
                     o = {
@@ -5623,22 +4930,18 @@ function(t, e) {
                     };
                 return function(r) {
                     var a, c = Math.abs(r.originalEvent.wheelDeltaX),
-                        h = Math.abs(r.originalEvent.wheelDeltaY),
-                        l = $(r.currentTarget);
+                        l = Math.abs(r.originalEvent.wheelDeltaY),
+                        u = $(r.currentTarget);
                     if (r.originalEvent.wheelDeltaY || r.originalEvent.wheelDeltaX) {
                         r.preventDefault();
-                        var u = "";
-                        c > h ? u = "h" : h > c && (u = "v"), u !== o.direction && Date.now() < o.time + n || (o.direction = u, o.time = Date.now(), "v" === u ? l.is(A) ? (a = d[t] - r.originalEvent.wheelDeltaY, e.scrollTop(a), d[t] = e.scrollTop()) : l.scrollTop(l.scrollTop() - r.originalEvent.wheelDeltaY) : "h" === u && i.scrollLeft(s.scrollLeft() - r.originalEvent.wheelDeltaX))
+                        var d = "";
+                        c > l ? d = "h" : l > c && (d = "v"), d !== o.direction && Date.now() < o.time + n || (o.direction = d, o.time = Date.now(), "v" === d ? u.is(T) ? (a = h[t] - r.originalEvent.wheelDeltaY, e.scrollTop(a), h[t] = e.scrollTop()) : u.scrollTop(u.scrollTop() - r.originalEvent.wheelDeltaY) : "h" === d && i.scrollLeft(s.scrollLeft() - r.originalEvent.wheelDeltaX))
                     }
                 }
-            }, K = function(t, s) {
+            }, N = function(t, s) {
                 var n, o = function(i) {
                         var s = i.model,
                             o = i.isMessageColumn(),
-
-                            iC = !o && i.isClearable(),
-                        	hA = o || iC,
-
                             r = i.hasActiveSearchFilters(),
                             a = null;
                         r && (a = {
@@ -5659,94 +4962,94 @@ function(t, e) {
                                 columnfilter: a,
                                 filterError: i.hasFilterError(),
                                 withEditableTitle: c,
-                                withMarkAllRead: o,     
-
-								hasHeaderAction: hA,
-								isClearable: iC,
-
+                                withMarkAllRead: o,
                                 withDMComposeButton: o,
                                 isTouchColumnOptions: Boolean(e.util.isTouchDevice() && e.decider.get(e.decider.TOUCHDECK_COLUMN_OPTIONS))
                             };
                         return e.ui.template.render("column", h)
                     };
                 if (s = Boolean(s))
-                    for (n = t.length - 1; n >= 0; n--) i.prepend(o(t[n])), V.setupColumn(t[n]);
+                    for (n = t.length - 1; n >= 0; n--) i.prepend(o(t[n])), j.setupColumn(t[n]);
                 else
-                    for (n = 0; n < t.length; n++) i.append(o(t[n])), V.setupColumn(t[n])
-            }, V = {
+                    for (n = 0; n < t.length; n++) i.append(o(t[n])), j.setupColumn(t[n])
+            }, j = {
                 COLUMN_GLOW_DURATION: 500,
                 init: function() {
-                    i = $(b), s = $(y);
-                    var t = _.throttle(U, 300);
-                    i.on("click", R + ", " + k, t), i.on("click", F, N)
+                    i = $(w), s = $(f);
+                    var t = _.throttle(M, 300);
+                    i.on("click", A + ", " + b, t), i.on("click", v, R)
                 },
                 setupColumn: function(t) {
                     var i = t.model.getKey(),
-                        s = $(M + '[data-column="' + i + '"]').closest(A),
-                        n = $(I + '[data-column="' + i + '"]'),
+                        s = $(D + '[data-column="' + i + '"]').closest(T),
+                        n = $(S + '[data-column="' + i + '"]'),
                         o = s.scrollTop(),
-                        r = q(i, s),
-                        a = z(i, s);
+                        r = U(i, s),
+                        a = L(i, s);
                     $(document).trigger("uiColumnRendered", {
                         column: t,
                         $column: n
-                    }), e.util.isTouchDevice() && e.decider.get(e.decider.TOUCHDECK_TWEETCONTROLS) && s.addClass(P), d[i] = o, l[i] = s, s.scroll(r), n.on("mousewheel onmousewheel", ".scroll-v", a), n.on("mouseover", F, function() {
-                        var t = d[i];
-                        $(this).toggleClass(S, t > 0)
+                    }), e.util.isTouchDevice() && e.decider.get(e.decider.TOUCHDECK_TWEETCONTROLS) && s.addClass(k), h[i] = o, c[i] = s, s.scroll(r), n.on("mousewheel onmousewheel", ".scroll-v", a), n.on("mouseover", v, function() {
+                        var t = h[i];
+                        $(this).toggleClass(p, t > 0)
                     }), e.util.isTouchDevice() && window.navigator.standalone && n.on("touchmove", ".scroll-v", function(t) {
                         t.stopPropagation()
                     })
                 },
                 refreshTitle: function(t) {
-                    var i, s, n = t.getIconClass(),
-                        o = t.model.getKey(),
-                        r = !t.temporary && t.isOwnCustomTimeline(),
-                        a = t.getTitleHTML({
-                            editable: r
+                    var i, s, n, o = t.getIconClass(),
+                        r = t.model.getKey(),
+                        a = !t.temporary && t.isOwnCustomTimeline(),
+                        c = t.getTitleHTML({
+                            editable: a
                         }),
-                        c = V.getColumnElementByKey(o),
-                        h = t.isMessageColumn(),
+                        h = j.getColumnElementByKey(r),
+                        l = t.isMessageColumn();
 
-                            iC = !h && i.isClearable(),
-                        	hA = h || iC;
-                    s = t.temporary && t.getColumnType() === e.util.columnUtils.columnMetaTypes.SEARCH ? e.i("results") : t.getDetailTitleHTML(), i = e.ui.template.render("column/column_header", {
-                        columntitle: a,
-                        columniconclass: n,
+                    var mCol = t,
+                        cMes = mCol.isMessageColumn(), 
+                        iC = !cMes && mCol.isClearable(),
+                        hA = cMes || iC;
+
+                    s = t.temporary && t.getColumnType() === e.util.columnUtils.columnMetaTypes.SEARCH ? e.i("results") : t.getDetailTitleHTML(), t.isMessageColumn() && (n = t.unreadMessageCount()), i = e.ui.template.render("column/column_header", {
+                        columntitle: c,
+                        columniconclass: o,
                         isTemporary: t.temporary,
-                        withEditableTitle: r,
+                        withEditableTitle: a,
                         withImageAttribution: !0,
-                        withMarkAllRead: h, 
+                        withMarkAllRead: l,
 
-								hasHeaderAction: hA,
-								isClearable: iC,
+                        hasHeaderAction: hA,
+                        isClearable: iC,
 
-                        withDMComposeButton: h
-                    }), L(t.model.getKey()).replaceWith(i), i = e.ui.template.render("column/column_header_detail", {
+                        withDMComposeButton: l,
+                        unreadCount: "0" === n ? null : n
+                    }), E(t.model.getKey()).replaceWith(i), i = e.ui.template.render("column/column_header_detail", {
                         headerClass: "js-detail-header",
                         headerAction: "resetToTopColumn",
                         headerLinkClass: "js-column-back",
                         columntitle: s
-                    }), c.find(E).replaceWith(i), $(document).trigger("uiColumnTitleRefreshed", {
-                        columnKey: o
+                    }), h.find(y).replaceWith(i), h.trigger("uiColumnTitleRefreshed", {
+                        columnKey: r
                     })
                 },
                 setColumnToTop: function(t) {
-                    var e, i = l[t],
+                    var e, i = c[t],
                         s = 10,
-                        n = d[t],
+                        o = h[t],
                         r = 250,
                         a = function() {
-                            var o = Math.max(n - r, 0);
-                            n -= r, i.scrollTop(o), d[t] = o, o > 0 ? setTimeout(a, s) : (i.trigger("uiReadStateChange", {
+                            var n = Math.max(o - r, 0);
+                            o -= r, i.scrollTop(n), h[t] = n, n > 0 ? setTimeout(a, s) : (i.trigger("uiReadStateChange", {
                                 read: !0
-                            }), e = L(t), e.toggleClass(S, i.scrollTop > 0))
+                            }), e = E(t), e.toggleClass(p, i.scrollTop > 0))
                         };
-                    n * s / r > o && (r = n * s / o), a()
+                    o * s / r > n && (r = o * s / n), a()
                 },
                 enterEditMode: function(i, s) {
                     var n, o = e.controller.columnManager.get(i),
-                        r = V.getColumnElementByKey(i);
-                    r.length && !r.hasClass(w) && (r.addClass(w), n = $(D, r), t.attachTo(n, {
+                        r = j.getColumnElementByKey(i);
+                    r.length && !r.hasClass(u) && (r.addClass(u), n = $(C, r), t.attachTo(n, {
                         column: o,
                         expandContentFilter: "content-filter" === s,
                         expandUserFilter: "user-filter" === s,
@@ -5756,201 +5059,1325 @@ function(t, e) {
                     }))
                 },
                 exitEditMode: function(t) {
-                    var e = V.getColumnElementByKey(t),
-                        i = $(D, e);
-                    e.hasClass(w) && (e.removeClass(w), i.trigger("uiColumnOptionsCloseAction"))
+                    var e = j.getColumnElementByKey(t),
+                        i = $(C, e);
+                    e.hasClass(u) && (e.removeClass(u), i.trigger("uiColumnOptionsCloseAction"))
                 },
-                isFrozen: function(t) {
-                    var e = l[t];
-                    return e ? 0 !== d[t] : !1
+                isScrolledToTop: function(t) {
+                    var e = c[t];
+                    return e ? 0 === h[t] : !0
                 },
-                freezeScroll: function(t) {
-                    var e = l[t],
-                        i = m[t];
-                    if (!e) return !1;
-                    var s = d[t];
-                    return g[t] || (h[t] = e[0].scrollHeight - s), 0 !== s || i
+                alterColumnContents: function(t, e, i, s) {
+                    if (s = s || {}, e && 0 !== e.length) {
+                        var n, o, r = l[t],
+                            a = 0;
+                        if ("boolean" == typeof s.willBreakScrollPosition) n = s.willBreakScrollPosition;
+                        else {
+                            var c = r ? r.position().top : a;
+                            n = e.position().top < c
+                        }
+                        n && (o = this.cacheColumnScrollPosition(t));
+                        var h = i(e);
+                        return n && o(), h
+                    }
                 },
-                unfreezeScroll: function(t, e) {
-                    var i, s = l[t],
-                        n = m[t],
-                        o = h[t],
-                        r = u[t],
-                        a = d[t];
-                    g[t] || s && (o && (a > 0 || n) ? (i = s[0].scrollHeight - o, s.scrollTop(i), d[t] = i, e && e()) : H(s), r && r.resizeScroller())
+                cacheColumnScrollPosition: function(t) {
+                    var e = c[t];
+                    if (!e) return function() {};
+                    var i = h[t],
+                        s = e[0].scrollHeight - i;
+                    return function() {
+                        var i;
+                        i = e[0].scrollHeight - s, e.scrollTop(i), h[t] = i, 0 === i && P(e)
+                    }
                 },
-                lockColumnScrolling: function(t) {
-                    m[t] = !0
+                lockColumnToElement: function(t, e) {
+                    l[t] = e
                 },
-                unlockColumnScrolling: function(t) {
-                    delete m[t]
+                unlockColumnFromElement: function(t) {
+                    delete l[t]
                 },
                 addColumnsToView: function(t) {
-                    K(t), $(M).show()
+                    N(t), $(D).show()
                 },
                 removeColumn: function(t) {
-                    var e = V.getColumnElementByKey(t);
-                    e.trigger("uiRemoveColumn"), e.remove(), delete d[t], delete l[t], delete u[t]
-                },
-                _moveColumnInstantly: function(t, e, s, n, o, r) {
-                    s.length > 0 && s.attr("data-column") !== o[n + 1] && (r[s.attr("data-column")] = s.detach()), t ? e.insertAfter(t) : e.prependTo(i)
-                },
-                _getOriginalWidth: function(t) {
-                    return t.data("originalWidth") || parseInt(t.css("width"), 10)
-                },
-                _storeOriginalWidth: function(t) {
-                    var e = t.data("originalWidth");
-                    void 0 === e && (e = parseInt(t.css("width"), 10)), t.data("originalWidth", e)
-                },
-                _isColumnOffScreen: function(t) {
-                    return t.position().left + this._getOriginalWidth(t) < 0 || t.position().left + this._getOriginalWidth(t) > s.width()
-                },
-                _moveColumnToNewIndex: function(t, e, s, n, o) {
-                    var r, a, c, h = e[t],
-                        l = s[h] || i.children('[data-column="' + h + '"]'),
-                        u = l.index(),
-                        d = function() {
-                            l.removeClass(C), n = l, delete s[h]
-                        };
-                    e.length >= t ? (r = i.children(I).filter('[data-column="' + e[t + 1] + '"]'), a = r.index()) : (r = !1, a = -1), t < e.length && u !== a && (l.hasClass(C) ? (this._storeOriginalWidth(l), this._moveColumnInstantly(n, l, r, t, e, s), this._isColumnOffScreen(l) ? (c = this.scrollColumnToCenter(l.attr("data-column")), c.addCallback(function() {
-                        d(), V._moveColumnToNewIndex(t + 1, e, s, n, o)
-                    })) : (V.focusColumn(l.attr("data-column"), V.COLUMN_GLOW_DURATION), d(), V._moveColumnToNewIndex(t + 1, e, s, n, o))) : (n = l, this._moveColumnToNewIndex(t + 1, e, s, n, o)))
-                },
-                reorderColumns: function(t) {
-                    var e = {}, s = null,
-                        n = i.children("." + C);
-                    n.length > 0 ? this._moveColumnToNewIndex(0, t, e, s, n) : _.each(t, function(n, o) {
-                        var r = e[n] || V.getColumnElementByKey(n),
-                            a = i.children(I).eq(o);
-                        a[0] !== r[0] && (t.length > o + 1 && a.length > 0 && a.attr("data-column") !== t[o + 1] && (e[a.attr("data-column")] = a.detach()), 0 === o ? r.prependTo(i) : r.insertAfter(s), delete e[n]), s = r
-                    })
+                    var e = j.getColumnElementByKey(t);
+                    e.trigger("uiRemoveColumn"), e.remove(), delete h[t], delete c[t]
                 },
                 calculateScrollDuration: function(t, e, i) {
-                    i = i || r, e = e || c;
-                    var s = a + t / 100 * e;
+                    i = i || o, e = e || a;
+                    var s = r + t / 100 * e;
                     return s = Math.min(s, i)
-                },
-                scrollColumnToCenter: function(t) {
-                    var o, h, l, u, d, m, g, p, f, w = V.getColumnElementByKey(t),
-                        C = s.innerWidth() / w.outerWidth(!0),
-                        T = s.scrollLeft(),
-                        v = !0;
-                    return 3.05 >= C ? (f = parseInt(i.css("padding-left"), 10), u = T + w.position().left - f) : (d = w.outerWidth(), m = s.get(0).scrollWidth - n, g = i.width(), p = w.offset().left, u = T + p - (g - d) / 2, u = Math.min(u, m - g), u = Math.max(u, 0)), 2 > C && (v = !1), u !== T ? (s.stop(), o = Math.abs(u - T), h = a + o / 100 * c, h = Math.min(h, r), l = new e.core.defer.Deferred, s.animate({
-                        scrollLeft: u
-                    }, h, "easeInOutQuad", function() {
-                        v && e.ui.columns.focusColumn(t, V.COLUMN_GLOW_DURATION), l.callback()
-                    })) : (v && e.ui.columns.focusColumn(t, V.COLUMN_GLOW_DURATION), l = e.core.defer.succeed()), l
                 },
                 getLeftmostColumn: function() {
                     var t = null;
-                    return i.children(I).each(function() {
+                    return i.children(S).each(function() {
                         t || ($(this).position().left < 10 && $(this).position().left >= 0 ? t = this : $(this).position().left > 10 && (t = $(this).prev()))
                     }), $(t)
                 },
-                scrollColumn: function(t) {
-                    $.fn.reverse = [].reverse;
-                    var e, o, r, a = s[0].scrollWidth - s.outerWidth(),
-                        c = !1,
-                        h = !1,
-                        l = 0;
-                    e = "right" === t ? this.getLeftmostColumn().next() : this.getLeftmostColumn().prev(), e.length ? (o = s.scrollLeft() + e.position().left, o > a ? (c = !0, r = s[0].scrollWidth - (s.scrollLeft() + s.outerWidth()), r > 0 && s.stop().animate({
-                        scrollLeft: a
-                    }, 350)) : s.stop().animate({
-                        scrollLeft: o - n
-                    }, 350)) : h = !0, c && 0 === r && i.find(I).last().animate({
-                        marginRight: 20
-                    }, {
-                        duration: 150,
-                        complete: function() {
-                            $(this).animate({
-                                marginRight: 0
-                            }, 150), s.scrollLeft(s[0].scrollWidth)
-                        },
-                        step: function(t) {
-                            s.not(":animated").scrollLeft(s.scrollLeft() + t - l), l = t
-                        }
-                    }), h && this.bounceLeft()
-                },
-                bounceLeft: function() {
-                    i.animate({
-                        marginLeft: f
-                    }, p, function() {
-                        i.animate({
-                            marginLeft: 0
-                        }, p)
-                    })
-                },
-                bounceRight: function() {
-                    var t = i.find(I).last(),
-                        e = parseInt(t.css("marginRight"), 10);
-                    t.animate({
-                        marginRight: e + f
-                    }, {
-                        duration: p,
-                        complete: function() {
-                            $(this).animate({
-                                marginRight: e
-                            }, p)
-                        },
-                        step: function() {
-                            s.scrollLeft(s[0].scrollWidth)
-                        }
-                    })
-                },
-                scrollPage: function(t) {
-                    $.fn.reverse = [].reverse;
-                    var e, o, r, a, c, h = "left" === t ? -1 : 1,
-                        l = s.innerWidth(),
-                        u = i.children(I).outerWidth() + n,
-                        d = Math.floor(l / u),
-                        m = s.scrollLeft() + d * u * h;
-                    if ("left" === t && m > 0) {
-                        r = d * u * h;
-                        for (var g = 0; g < i.children(I).length; g++) {
-                            var p = i.children(I).eq(g),
-                                f = p.position().left;
-                            r > f && (o = p.next())
-                        }
-                        o && (m = s.scrollLeft() - -1 * o.position().left)
-                    }
-                    0 > m ? m = 0 : m + l > s[0].scrollWidth && (m = s[0].scrollWidth - l), m === s.scrollLeft() && "left" === t ? this.bounceLeft() : m === s.scrollLeft() && "right" === t ? this.bounceRight() : (c = Math.abs(m - s.scrollLeft()), e = this.calculateScrollDuration(c, 50, 1e3), a = 700 > e ? s.is(":animated") ? "easeOutQuad" : "easeInOutQuad" : s.is(":animated") ? "easeOutQuart" : "easeInOutQuart", s.stop().animate({
-                        scrollLeft: m
-                    }, {
-                        duration: e,
-                        easing: a
-                    }))
-                },
                 focusColumn: function(t, s) {
-                    $(v, i).removeClass(T), V.getColumnElementByKey(t).addClass(T), _.isNumber(s) && _.delay(function() {
+                    $(g, i).removeClass(m), j.getColumnElementByKey(t).addClass(m), _.isNumber(s) && _.delay(function() {
                         e.ui.columns.unfocusColumn(t)
                     }, s)
                 },
                 unfocusColumn: function(t) {
-                    V.getColumnElementByKey(t).removeClass(T)
+                    j.getColumnElementByKey(t).removeClass(m)
                 },
                 setMovingColumn: function(t) {
-                    V.getColumnElementByKey(t).addClass(C)
+                    j.getColumnElementByKey(t).addClass(d)
                 },
                 getColumnElementByKey: function(t) {
-                    return $(I + '[data-column="' + t + '"]')
+                    return $(S + '[data-column="' + t + '"]')
                 }
             };
-        return V
+        return j
     }()
-}), define("ui/column_controller", ["flight/lib/component", "ui/with_column_selectors", "ui/with_template", "ui/with_transitions", "ui/drag_drop/with_drag_scroll", "ui/column", "td/UI/columns"], function(t, e, i, s, n, o) {
-    function r() {
+}), define("ui/compose/with_character_limit", [], function() {
+    return function() {
         this.defaultAttrs({
-            columnsContainerSelector: ".js-app-columns",
-            containerSelector: "#container",
-            columnDragHandleSelector: ".js-column-drag-handle",
+            maxCharCount: 140
+        }), this.getRemainingCharCount = function(t) {
+            return this.attr.maxCharCount - t
+        }, this.isWithinCharLimit = function(t) {
+            return t <= this.attr.maxCharCount && t > 0
+        }, this.isOverCharLimit = function(t) {
+            return t > this.attr.maxCharCount
+        }
+    }
+}), define("ui/compose/with_character_count", ["require", "flight/lib/compose", "ui/compose/with_character_limit"], function(t) {
+    var e = t("flight/lib/compose"),
+        i = t("ui/compose/with_character_limit");
+    return function() {
+        e.mixin(this, [i]), this.defaultAttrs({
+            charCountSelector: ".js-character-count",
+            charCountInvalidClass: "invalid-char-count"
+        }), this.after("initialize", function() {
+            this.charCount = 0, this.on("uiComposeCharCount", this.charCountHandleCharCount)
+        }), this.after("setupDOM", function() {
+            this.$charCountInput = this.select("charCountSelector")
+        }), this.charCountHandleCharCount = function(t, e) {
+            t.stopPropagation(), this.charCount = e.charCount, this.$charCountInput.val(this.getRemainingCharCount(this.charCount)), this.charCountUpdateValidCountState(this.charCount)
+        }, this.charCountUpdateValidCountState = function(t) {
+            var e = this.isOverCharLimit(t);
+            this.$charCountInput.toggleClass(this.attr.charCountInvalidClass, e)
+        }
+    }
+}), define("util/tweet_utils", [], function() {
+    var t = {};
+    return t.atMentionify = function(t) {
+        return TD.util.atMentionify(t)
+    }, t.deMentionify = function(t) {
+        return TD.util.deMentionify(t)
+    }, t.getTweetLength = function(t) {
+        return twttr.txt.getTweetLength(t)
+    }, t.extractMentions = function(t) {
+        return twttr.txt.extractMentions(t)
+    }, t.removeFirstMention = function(t) {
+        var e, i = twttr.txt.extractMentionsWithIndices(t);
+        return i.length && (e = i[0].indices, t = t.substring(0, e[0]).trim() + t.substring(e[1])), t
+    }, t
+}), define("ui/with_focusable_field", [], function() {
+    var t = function() {
+        this.defaultAttrs({
+            focusableSelector: "textarea, input"
+        }), this.after("initialize", function() {
+            var t = this.select("focusableSelector");
+            this.on(t, "focus", function() {
+                TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) && (window.scrollTo(0, 0), document.body.scrollTop = 0)
+            })
+        })
+    };
+    return t
+}), define("ui/compose/with_compose_text", ["require", "flight/lib/compose", "util/tweet_utils", "ui/with_focusable_field"], function(t) {
+    var e = t("flight/lib/compose"),
+        i = t("util/tweet_utils"),
+        s = t("ui/with_focusable_field");
+    return function() {
+        e.mixin(this, [s]);
+        var t = "",
+            n = !1,
+            o = [],
+            r = [],
+            a = function(t) {
+                var e = {};
+                return t.map(function(t) {
+                    return t.filter(function(t) {
+                        var i = t.toLowerCase(),
+                            s = e[i];
+                        return e[i] = !0, !s
+                    })
+                })
+            };
+        this.defaultAttrs({
+            composeTextSelector: ".js-compose-text",
+            withAutoComplete: !0
+        }), this.after("initialize", function() {
+            this.on("uiRemoveInReplyTo", this.removeReplyStack), this.on("uiMessageRecipientSet", function(t) {
+                t.stopPropagation(), this.composeTextSetFocus()
+            }), this.before("setupDOM", this.destroyAutoComplete), this.before("teardown", this.destroyAutoComplete)
+        }), this.after("setupDOM", function() {
+            this.$composeTextInput = this.select("composeTextSelector"), this.on(this.$composeTextInput, "input propertychange change", this.composeTextHandleChange), this.on(this.$composeTextInput, "blur", this.handleTextInputBlur), this.on("uiRequestComposeTextFocus", function() {
+                (!TD.util.isiOSDevice() || !TD.decider.get(TD.decider.TOUCHDECK_COMPOSE)) && this.composeTextSetFocus()
+            }), this.attr.withAutoComplete && (this.textAutoComplete = new TD.components.Autocomplete(this.$composeTextInput))
+        }), this.composeTextGetText = function() {
+            return this.$composeTextInput.val()
+        }, this.composeTextSetFocus = function() {
+            this.$composeTextInput.focus()
+        }, this.composeTextBlur = function() {
+            this.$composeTextInput.blur()
+        }, this.composeTextSetText = function(t) {
+            this.$composeTextInput.val() !== t && (this.$composeTextInput.val(t), this.composeTextHandleChange())
+        }, this.composeTextAppendText = function(t) {
+            var e = this.$composeTextInput.val();
+            this.composeTextSetText((e && e.trim() + " ") + t)
+        }, this.composeTextPrependText = function(t) {
+            this.composeTextSetText(t + " " + this.composeTextGetText())
+        }, this.composeTextSetDisabled = function(t) {
+            this.$composeTextInput.prop("disabled", t)
+        }, this.composeTextIsEmpty = function() {
+            return "" === this.$composeTextInput.val()
+        }, this.composeTextSetCaret = function(t) {
+            var e = this.$composeTextInput;
+            e[0].selectionStart = e[0].selectionEnd = t, e.focus()
+        }, this.composeTextSetCaretToEnd = function() {
+            this.composeTextSetCaret(this.$composeTextInput.val().length)
+        }, this.composeTextSetSelection = function(t, e) {
+            var i = this.$composeTextInput[0];
+            i.selectionStart = t, i.selectionEnd = e, setTimeout(function() {
+                i.selectionStart = t, i.selectionEnd = e
+            }, 70), this.$composeTextInput.focus()
+        }, this.composeTextSetHeight = function(t) {
+            this.$composeTextInput.css({
+                height: t
+            })
+        }, this.removeReplyStack = function(e) {
+            e.stopPropagation();
+            var i = this.composeTextGetReplyText();
+            this.composeTextSetText(i.trim()), o = [], r = [], n = !1, t = ""
+        }, this.composeTextReset = function() {
+            this.composeTextSetText(""), o = [], r = [], n = !1, t = ""
+        }, this.composeTextSetRepliesAndMentions = function(t, e, i) {
+            var s = this.composeTextComputeRepliesAndMentions(t, e, i);
+            this.composeTextSetText(s.totalString), this.composeTextSetSelection(s.startIndex, s.endIndex)
+        }, this.composeTextComputeRepliesAndMentions = function(e, s, a) {
+            return e = e.map(i.atMentionify), s = s.map(i.atMentionify), a = a && i.atMentionify(a), a && (s = s.filter(function(t) {
+                return t.toLowerCase() !== a.toLowerCase()
+            }), a === e[0] && s.length > 0 && (e = [s.shift()])), e = e.map(i.atMentionify), s = s.map(i.atMentionify), n === !1 && (n = this.$composeTextInput.val()), this.composeTextIsStacking() && this.composeTextHasLostStackingState() && (o = [], r = [], t = this.$composeTextInput.val(), n = ""), this.composeTextGetReplyStack(e, s)
+        }, this.composeTextHandleChange = function() {
+            var t = this.$composeTextInput.val();
+            this.trigger("uiComposeCharCount", {
+                charCount: i.getTweetLength(t),
+                stringLength: t.length
+            })
+        }, this.handleTextInputBlur = function() {
+            this.trigger("uiComposeTextBlur")
+        }, this.composeTextIsStacking = function() {
+            return o.length + r.length > 0
+        }, this.composeTextGenerateReplyStack = function(t, e, i) {
+            var s, o, r, a = t.join(" "),
+                c = e.join(" "),
+                h = [];
+            return i && (i = i.replace(/ $/, ""), h.push(i)), a && h.push(a), n && h.push(n), c && h.push(c), s = h.join(" ").trim() + " ", o = c ? s.length - c.length - 1 : s.length, r = s.length, {
+                totalString: s,
+                startIndex: o,
+                endIndex: r
+            }
+        }, this.composeTextGetReplyText = function() {
+            var t = r.concat(o);
+            return this.$composeTextInput.val().split(" ").filter(function(e) {
+                return t.indexOf(e) < 0
+            }).join(" ")
+        }, this.composeTextHasLostStackingState = function() {
+            var e = this.composeTextGenerateReplyStack(o, r, t);
+            return e.totalString !== this.$composeTextInput.val() || e.startIndex !== this.$composeTextInput[0].selectionStart || e.endIndex !== this.$composeTextInput[0].selectionEnd
+        }, this.composeTextGetReplyStack = function(e, i) {
+            var s;
+            return this.composeTextIsStacking() && this.trigger("uiComposeStackReply"), o = o.concat(e), r = r.concat(i), s = a([o, r]), o = s[0], r = s[1], this.composeTextGenerateReplyStack(o, r, t)
+        }, this.destroyAutoComplete = function() {
+            this.textAutoComplete && (this.textAutoComplete.destroy(), this.textAutoComplete = null)
+        }
+    }
+}), define("util/with_teardown", [], function() {
+    function t() {
+        this.before("initialize", function() {
+            this.childTeardownEvent = this.childTeardownEvent || this.nextTeardownEvent()
+        }), this.before("teardown", function() {
+            this.trigger(document, this.childTeardownEvent)
+        }), this.after("initialize", function() {
+            if (this.attr.teardownOn) {
+                if (this.attr.teardownOn === this.childTeardownEvent) throw new Error("Component initialized to listen for its own teardown event.");
+                this.on(document, this.attr.teardownOn, this.teardown)
+            }
+        }), this.nextTeardownEvent = function() {
+            return _.uniqueId("_teardownEvent")
+        }, this.attachChild = function(t, e, i) {
+            i = i || {}, i.teardownOn || (i.teardownOn = this.childTeardownEvent), t.attachTo(e, i)
+        }
+    }
+    return t
+}), define("ui/custom_timeline_description", ["require", "flight/lib/component", "ui/compose/with_character_count", "ui/compose/with_character_limit", "ui/compose/with_compose_text", "util/with_teardown", "ui/with_template", "ui/with_transitions"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            accountKey: null,
+            customTimelineId: null,
+            isOwnCustomTimeline: !1,
+            readOnly: !1,
+            reloadPeriod: 900,
+            animatingClass: "is-column-options-animating",
+            inputSelector: ".js-input",
+            editSelector: ".js-edit",
+            saveSelector: ".js-save",
+            cancelSelector: ".js-cancel"
+        }), this.after("initialize", function() {
+            this.customTimeline = null, this.newDescription = null, this.on(document, "dataCustomTimelineSuccess", this.handleCustomTimeline.bind(this)), this.on(document, "dataCustomTimelineUpdateError", this.handleUpdateError.bind(this)), this.on("uiComposeCharCount", this.handleCharCount), this.on("click", {
+                editSelector: this.edit,
+                saveSelector: this.save,
+                cancelSelector: this.cancel
+            }), this.on("uiInputSubmit", {
+                inputSelector: this.save
+            }), this.on("uiInputBlur", {
+                inputSelector: this.cancel
+            }), this.reloadTaskId = TD.controller.scheduler.schedulePeriodicTask(this.attr.reloadPeriod, this.requestData.bind(this), !0)
+        }), this.before("teardown", function() {
+            TD.controller.scheduler.removePeriodicTask(this.reloadTaskId)
+        }), this.requestData = function() {
+            this.trigger(document, "uiNeedsCustomTimeline", {
+                id: this.attr.customTimelineId,
+                account: this.attr.accountKey
+            })
+        }, this.handleCustomTimeline = function(t, e) {
+            var i = !0;
+            e.action.id === this.attr.customTimelineId && (i = !this.customTimeline || this.customTimeline.description !== e.result.description, this.customTimeline = e.result, this.customTimeline.description === this.newDescription && (this.newDescription = null), i && this.showDescription(this.customTimeline.description))
+        }, this.showDescription = function(t) {
+            var e = this.renderTemplate("column/custom_timeline_description", {
+                description: t,
+                editable: this.attr.isOwnCustomTimeline && !this.attr.readOnly
+            });
+            this.animateElementContentHeight(this.$node, e, this.attr.animatingClass)
+        }, this.edit = function() {
+            var t = null !== this.newDescription ? this.newDescription : this.customTimeline.description,
+                e = this.renderTemplate("column/custom_timeline_edit_description");
+            this.animateElementContentHeight(this.$node, e, this.attr.animatingClass), this.select("inputSelector").focus(), this.setupDOM(), this.composeTextSetText(t), this.composeTextSetCaretToEnd(), this.composeTextHandleChange()
+        }, this.setupDOM = function() {}, this.save = function() {
+            var t = this.select("inputSelector").val(),
+                e = this.customTimeline ? this.customTimeline.description : null;
+            this.select("saveSelector").prop("disabled") || (this.showDescription(t), t !== e && (this.newDescription = t, this.trigger(document, "uiUpdateCustomTimeline", {
+                account: this.attr.accountKey,
+                id: this.attr.customTimelineId,
+                description: t
+            })))
+        }, this.cancel = function() {
+            this.showDescription(this.customTimeline.description)
+        }, this.handleUpdateError = function(t, e) {
+            e.action.id === this.attr.customTimelineId && this.newDescription && (this.edit(), TD.controller.progressIndicator.addMessage(TD.i("Error: unable to save description")))
+        }, this.handleCharCount = function(t, e) {
+            var i = this.isOverCharLimit(e.charCount);
+            this.select("saveSelector").prop("disabled", i)
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/compose/with_character_count"),
+        n = t("ui/compose/with_character_limit"),
+        o = t("ui/compose/with_compose_text"),
+        r = t("util/with_teardown"),
+        a = t("ui/with_template"),
+        c = t("ui/with_transitions");
+    return i(e, s, n, o, r, a, c)
+}), define("ui/with_text_utils", ["flight/lib/compose", "ui/with_template"], function(t, e) {
+    function i() {
+        t.mixin(this, [e]), this.highlightSubstring = function(t, e) {
+            var i, s, n = -1;
+            return e && (n = t.toLowerCase().indexOf(e.toLowerCase())), -1 !== n ? (s = {
+                before: t.substr(0, n),
+                highlight: t.substr(n, e.length),
+                after: t.substr(n + e.length)
+            }, i = this.toHtmlFromRaw("{{before}}<b>{{highlight}}</b>{{after}}", s)) : i = this.toHtmlFromRaw("{{text}}", {
+                text: t
+            }), i
+        }, this.prettyNumber = function(t) {
+            return TD.util.prettyNumber(t)
+        }
+    }
+    return i
+}), define("ui/social_proof_for_tweet", ["require", "flight/lib/component", "ui/with_template", "ui/with_text_utils"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            columnBackSelector: ".js-tweet-social-proof-back",
+            headerLinkClass: "js-tweet-social-proof-back",
+            templateName: "status/social_proof_for_tweet"
+        }), this.after("initialize", function() {
+            var t, e, i;
+            this.on("uiSocialProofForTweetClose", this.close), this.on("click", {
+                columnBackSelector: this.close
+            }), this.on(document, "dataTwitterUsers", this.handleTwitterUsers), this.userIds = this.attr.tweetSummary[this.attr.type], "retweeters" === this.attr.type ? (e = "Retweeted", i = this.attr.tweetSummary.retweeters_count) : (e = "Favorited", i = this.attr.tweetSummary.favoriters_count), t = parseInt(i, 10) > 1 ? TD.i("{{action}} {{n}} times", {
+                n: this.prettyNumber(i),
+                action: e
+            }) : TD.i("{{action}} once", {
+                action: e
+            }), this.renderParams = {
+                title: t,
+                columntitle: TD.i("Tweet"),
+                headerLinkClass: this.attr.headerLinkClass,
+                withUserMenu: !0
+            }, this.render(this.attr.templateName, this.renderParams), this.requestId = _.uniqueId("twitterUsers"), this.trigger("uiNeedsTwitterUsers", {
+                requestId: this.requestId,
+                userIds: this.userIds
+            })
+        }), this.handleTwitterUsers = function(t, e) {
+            e.requestId === this.requestId && (this.renderParams.users = e.users, this.render(this.attr.templateName, this.renderParams))
+        }, this.close = function() {
+            this.trigger("uiSocialProofForTweetClosed"), this.teardown()
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_template"),
+        n = t("ui/with_text_utils");
+    return i(e, s, n)
+}), define("ui/with_column_selectors", [], function() {
+    var t = function() {
+        this.defaultAttrs({
             appColumnsContainerSelector: ".js-app-columns-container",
+            columnsContainerSelector: ".js-app-columns",
+            columnStateDetailViewClass: "js-column-state-detail-view",
+            columnStateSocialProofClass: "js-column-state-social-proof",
+            columnSelector: ".js-app-columns .js-column",
+            columnUpdateGlow: ".js-column-update-glow",
+            scrollContainerSelector: ".js-column-scroller",
+            columnDetailScrollerSelector: ".js-detail-container",
+            columnOptionsSelector: ".js-column-options",
+            columnOptionsContainerSelector: ".js-column-options-container",
+            columnHeaderSelector: ".js-column-header",
+            columnUnreadCountSelector: ".js-column-header .js-unread-count",
+            columnContentSelector: ".js-column-content"
+        }), this.getColumnScrollContainerByKey = function(t) {
+            var e = this.getColumnElementByKey(t),
+                i = e.find(this.attr.columnDetailScrollerSelector);
+            return i.length > 0 ? i : e.find(this.attr.scrollContainerSelector)
+        }, this.getColumnElementByKey = function(t) {
+            return this.select("columnSelector").filter('[data-column="' + t + '"]')
+        }, this.getKeyForColumnAtIndex = function(t) {
+            return this.select("columnSelector").eq(t).attr("data-column")
+        }, this.getKeyForLastColumn = function() {
+            return this.select("columnSelector").last().attr("data-column")
+        }
+    };
+    return t
+}), define("ui/with_focus", [], function() {
+    function t() {
+        this.focusRequest = function() {
+            this.trigger("uiFocusRequest", {
+                id: this.focusId
+            })
+        }, this.focusRelease = function() {
+            this.trigger("uiFocusRelease", {
+                id: this.focusId
+            })
+        }, this.handleFocus = function(t, e) {
+            this.hasFocus = e.id === this.focusId ? !0 : !1
+        }, this.whenHasFocus = function(t) {
+            return function() {
+                return this.hasFocus ? t.apply(this, arguments) : void 0
+            }.bind(this)
+        }, this.getNewFocusId = function() {
+            return _.uniqueId("focus")
+        }, this.after("teardown", function() {
+            this.hasFocus && this.trigger("uiFocusRelease", {
+                id: this.focusId
+            })
+        }), this.after("initialize", function() {
+            this.focusId = this.attr.focusId || this.getNewFocusId(), this.hasFocus = !1, this.on(document, "uiFocus", this.handleFocus), this.attr.autoFocus === !0 && this.focusRequest()
+        })
+    }
+    return t
+}), define("ui/with_dropdown", ["require", "flight/lib/compose", "ui/with_template", "ui/with_focus"], function(t) {
+    function e() {
+        i.mixin(this, [s, n]), this.defaultAttrs({
+            dropdownContainerSelector: ".js-dropdown-container",
+            dropdownContentSelector: ".js-dropdown-content",
+            isSelectableClass: "is-selectable",
+            isSelectableSelector: ".is-selectable",
+            isSelectedClass: "is-selected",
+            isSelectedSelector: ".is-selected",
+            dropdownOptions: {
+                position: [],
+                toggle: !1
+            },
+            dropdownPositions: {
+                offsetLeft: "pos-l",
+                offsetRight: "pos-r",
+                underLeftIcon: "pos-r-under-icon",
+                verticalRight: "pos-br",
+                above: "pos-t"
+            }
+        }), this.after("initialize", function() {
+            this.on(document, "uiDropdownShowing uiDetailViewOpening uiKeyEscape", this.teardownCurrentDropdown.bind(this)), this.dropdownFocusId = this.getNewFocusId(), this.on(document, "uiKeyEnter uiKeySpace", this.whenHasDropdownFocus(this.clickSelectedActionable)), this.on(document, "uiKeyUp", this.whenHasDropdownFocus(this.makeHandleChangeSelectionIndexBy(-1))), this.on(document, "uiKeyDown", this.whenHasDropdownFocus(this.makeHandleChangeSelectionIndexBy(1))), this.on(document, "uiKeyRight uiKeyLeft", this.whenHasDropdownFocus(this.jumpIntoDropdown))
+        }), this.before("teardown", function() {
+            this.teardownCurrentDropdown()
+        }), this.renderDropdown = function(t, e, i, s) {
+            if (!t || !t.length) throw new Error("Please supply a node to render dropdown with.");
+            if (!e) throw new Error("Please supply a template.");
+            i = i || {}, s = _.defaults(s || {}, this.attr.dropdownOptions);
+            var n = _.uniqueId("dropdown");
+            if (this.dropdownIsOpen()) {
+                if (this.$dropdownSourceNode && t.get(0) === this.$dropdownSourceNode.get(0)) return s.toggle ? (this.trigger("uiDropdownToggling", {
+                    id: n
+                }), this.teardownCurrentDropdown()) : this.trigger("uiDropdownAlreadyOpen", {
+                    id: n
+                });
+                this.teardownCurrentDropdown()
+            }
+            this.$dropdownSourceNode = t, this.trigger("uiDropdownShowing", {
+                id: n
+            });
+            var o = e;
+            "string" == typeof e && (o = this.renderTemplate(e, i));
+            var r = this.renderTemplate("menus/dropdown", s);
+            return r.find(this.attr.dropdownContentSelector).append(o), t.after(r), this.currentDropdown = {
+                $el: r,
+                id: n
+            }, this.maybeRepositionDropdown(), this.attachDropdownInteractions(r, s), this.parentFocusId = this.focusId, this.focusId = this.dropdownFocusId, this.focusRequest(), this.on(document, "click", this.handleDocumentClick), this.trigger("uiDropdownShown", {
+                id: n
+            }), r
+        }, this.handleDocumentClick = function() {
+            this.teardownCurrentDropdown()
+        }, this.attachDropdownInteractions = function(t) {
+            this.on(t, "mouseleave", this.removeCurrentSelection), this.on(t, "mouseover", {
+                isSelectableSelector: this.handleChangeSelectionToTarget
+            }), this.on(t, "click", this.cancelEventIfNotFromSelectable);
+            var e = t.find(this.attr.isSelectableSelector),
+                i = e.filter(this.attr.isSelectedSelector),
+                s = e.index(i);
+            this.currentDropdown.$selectables = e, this.currentDropdown.selectedIndex = s, s > -1 && this.changeSelectionToIndex(s)
+        }, this.teardownCurrentDropdown = function(t, e) {
+            if (t = t || {}, e = e || {}, this.dropdownIsOpen()) {
+                if (e.id === this.currentDropdown.id) return;
+                this.$dropdownSourceNode = null, this.trigger("uiDropdownHiding", {
+                    id: this.currentDropdown.id
+                }), this.focusRelease(), this.focusId = this.parentFocusId;
+                var i = this.currentDropdown.$el;
+                this.off(document, "click", this.handleDocumentClick), this.off(i, "mouseleave", this.removeCurrentSelection), this.off(i, "mouseover"), this.off(i, "click", this.cancelEventIfNotFromSelectable), this.currentDropdown.$el.remove();
+                var s = this.currentDropdown.id;
+                this.currentDropdown = null, this.trigger("uiDropdownHidden", {
+                    id: s
+                })
+            }
+        }, this.clickSelectedActionable = function() {
+            this.currentDropdown.selectedIndex > -1 && this.currentDropdown.$selectables.eq(this.currentDropdown.selectedIndex).find("[data-action]").first().click()
+        }, this.changeSelection = function(t) {
+            var e = $(t),
+                i = this.currentDropdown.$selectables.index(e.get(0));
+            this.removeCurrentSelection(), i > -1 && (this.currentDropdown.$selectables.eq(i).addClass(this.attr.isSelectedClass), this.currentDropdown.selectedIndex = i)
+        }, this.changeSelectionToIndex = function(t) {
+            if (0 > t) return this.removeCurrentSelection();
+            var e = this.currentDropdown.$selectables.eq(t);
+            this.changeSelection(e)
+        }, this.handleChangeSelectionToTarget = function(t, e) {
+            this.changeSelection(e.el)
+        }, this.makeHandleChangeSelectionIndexBy = function(t) {
+            return function(e) {
+                e.stopPropagation();
+                var i = this.getNewSelectedIndex(t);
+                this.changeSelectionToIndex(i)
+            }
+        }, this.removeCurrentSelection = function() {
+            this.currentDropdown.$selectables.eq(this.currentDropdown.selectedIndex).removeClass(this.attr.isSelectedClass), this.currentDropdown.selectedIndex = -1
+        }, this.getNewSelectedIndex = function(t) {
+            "undefined" == typeof t && (t = 1);
+            var e = this.currentDropdown.selectedIndex;
+            if (0 === t) return e;
+            var i = this.currentDropdown.$selectables.length,
+                s = (e + t) % i;
+            return 0 > e ? t > 0 ? 0 : i - 1 : 0 > s ? i + s : s
+        }, this.whenHasDropdownFocus = function(t) {
+            return this.whenHasFocus(function() {
+                return this.focusId === this.dropdownFocusId ? t.apply(this, arguments) : void 0
+            })
+        }, this.jumpIntoDropdown = function() {
+            -1 === this.currentDropdown.selectedIndex && this.changeSelectionToIndex(0)
+        }, this.cancelEventIfNotFromSelectable = function(t) {
+            var e = this.currentDropdown.$el,
+                i = $(t.target).closest(this.attr.isSelectableSelector, e);
+            i.length || (event.stopPropagation(), event.preventDefault())
+        }, this.dropdownIsOpen = function() {
+            return !!this.currentDropdown && !! this.currentDropdown.$el
+        }, this.maybeRepositionDropdown = function() {
+            var t, e, i, s, n, o = this.currentDropdown.$el,
+                r = o.closest(this.attr.dropdownContainerSelector);
+            r.length > 0 && !o.hasClass("pos-t") && (t = o.offset().top, n = o.outerHeight(), i = t + n, e = r.offset().top, s = e + r.height(), TD.util.isTouchDevice() && TD.decider.get(TD.decider.TOUCHDECK_DROPDOWNS) && TD.decider.get(TD.decider.TOUCHDECK_TWEETCONTROLS) && (n += 25), i >= s && t - n > e && o.addClass("pos-t"))
+        }
+    }
+    var i = t("flight/lib/compose"),
+        s = t("ui/with_template"),
+        n = t("ui/with_focus");
+    return e
+}), define("ui/drag_drop/with_drag_drop", ["require"], function() {
+    function t() {
+        this.defaultAttrs({
+            eventMap: {
+                uiDragStart: "dragstart",
+                uiDragEnd: "dragend",
+                mousedown: "predrag"
+            },
+            dropTargetClass: "with-drop-target",
+            draggableSelector: ".is-draggable"
+        }), this.setupDragDrop = function(t) {
+            t.type || (t.type = ["*"]), "string" == typeof t.type && (t.type = [t.type]), _.contains(t.type, "*") && (t.wantsAll = !0), "undefined" != typeof t.indicateDrop && (this.indicateDrop = !! t.indicateDrop), t.drop && this.indicateDrop !== !1 && (this.indicateDrop = !0), this.listeners.push(t)
+        }, this.hasSetupDragDrop = function() {
+            return this.listeners.length > 0
+        }, this.wantsDragType = function(t) {
+            return this.listeners.some(function(e) {
+                return e.wantsAll || _.contains(e.type, t)
+            }.bind(this))
+        }, this.notifyListeners = function(t, e) {
+            this.listeners.forEach(function(i) {
+                if (i.wantsAll || _.contains(i.type, e.type)) {
+                    var s = i[t.type] || i[this.attr.eventMap[t.type]];
+                    s && "function" == typeof s && s.call(i.context || this, t, e)
+                }
+            }.bind(this))
+        }, this.saveDragState = function(t) {
+            return function(e, i) {
+                return this.dragDropState = {
+                    active: !0,
+                    data: i
+                }, t.apply(this, [].slice.call(arguments))
+            }
+        }, this.clearDragState = function(t) {
+            return function() {
+                return this.dragDropState = this.dragDropStateInit, t.apply(this, [].slice.call(arguments))
+            }
+        }, this.retrieveDragState = function(t) {
+            return function(e) {
+                return t.call(this, e, this.dragDropState.data)
+            }
+        }, this.retrieveAndNotify = function() {
+            return this.retrieveDragState(this.notifyListeners)
+        }, this.extractDataFromEvent = function(t) {
+            var e = $(t.target).attr("data-drag-type"),
+                i = t.target.tagName.toLowerCase();
+            return e = e || i, {
+                type: e,
+                el: t.target
+            }
+        }, this.whenActive = function(t) {
+            return function() {
+                var e = this.dragDropState.active && this.wantsDragType(this.dragDropState.data.type);
+                return e ? t.apply(this, arguments) : void 0
+            }.bind(this)
+        }, this.whenSetup = function(t) {
+            return function() {
+                return this.hasSetupDragDrop() ? t.apply(this, arguments) : void 0
+            }.bind(this)
+        }, this.whenSetupAndActive = function(t) {
+            return this.whenSetup(this.whenActive(t))
+        }, this.before("initialize", function() {
+            this.listeners = [], this.dragDropState = this.dragDropStateInit = {
+                active: !1,
+                data: {}
+            }, this.indicateDrop = !0, this.dragDepth = 0
+        }), this.after("initialize", function() {
+            this.on(document, "uiDragStart", this.whenSetup(this.saveDragState(this.notifyListeners))), this.on(document, "uiDragEnd", this.whenSetup(function() {
+                this.dragDepth = 0, this.clearDragState(this.notifyListeners).apply(this, arguments)
+            })), this.on("drop", this.whenSetupAndActive(function(t) {
+                t.preventDefault(), this.dragDepth = 0, this.retrieveAndNotify().apply(this, arguments)
+            })), this.on("dragenter", this.whenSetupAndActive(function() {
+                this.dragDepth += 1, 1 === this.dragDepth && this.retrieveAndNotify().apply(this, [].slice.call(arguments))
+            })), this.on("dragleave", this.whenSetupAndActive(function() {
+                this.dragDepth -= 1, this.dragDepth <= 0 && (this.dragDepth = 0, this.retrieveAndNotify().apply(this, [].slice.call(arguments)))
+            })), this.on("dragover", this.whenSetupAndActive(function(t) {
+                this.indicateDrop === !0 && t.preventDefault(), this.retrieveAndNotify().apply(this, [].slice.call(arguments))
+            })), this.on("mousedown", {
+                draggableSelector: this.whenSetup(function(t, e) {
+                    var i = this.extractDataFromEvent({
+                        target: e.el
+                    });
+                    this.notifyListeners(t, i)
+                })
+            })
+        })
+    }
+    return t
+}), define("ui/with_spinner_button", [], function() {
+    var t = function() {
+        this.defaultAttrs({
+            spinnerButtonSelector: ".js-spinner-button",
+            spinnerButtonActiveSelector: ".js-spinner-button-active",
+            spinnerButtonActiveClass: "spinner-button-is-active",
+            spinnerButtonDisabledClass: "is-disabled",
+            spinnerButtonHiddenClass: "is-hidden"
+        }), this.spinnerButtonEnable = function() {
+            var t = this.select("spinnerButtonSelector"),
+                e = this.select("spinnerButtonActiveSelector");
+            t.addClass(this.attr.spinnerButtonDisabledClass), t.addClass(this.attr.spinnerButtonActiveClass), e.removeClass(this.attr.spinnerButtonHiddenClass)
+        }, this.spinnerButtonDisable = function() {
+            var t = this.select("spinnerButtonSelector"),
+                e = this.select("spinnerButtonActiveSelector");
+            t.removeClass(this.attr.spinnerButtonDisabledClass), t.removeClass(this.attr.spinnerButtonActiveClass), e.addClass(this.attr.spinnerButtonHiddenClass)
+        }
+    };
+    return t
+}), define("ui/with_add_to_customtimeline", ["flight/lib/compose", "ui/with_spinner_button", "ui/with_template"], function(t, e, i) {
+    function s() {
+        t.mixin(this, [e, i]), this.eventIsForCustomTimeline = function(t, e) {
+            var i = this.select("addToCustomTimelineInputSelector"),
+                s = TD.util.extractTweetIdFromPermalink(i.val());
+            return e.action.tweetId === s && e.action.id === i.data(this.attr.customTimelineIdDataAttr)
+        }, this.defaultAttrs({
+            addToCustomTimelineSelector: ".js-add-to-customtimeline",
+            addToCustomTimelineTemplate: "column/add_to_customtimeline",
+            addToCustomTimelineInputSelector: ".js-add-to-customtimeline-input",
+            addToCustomTimelineButtonSelector: ".js-add-to-customtimeline-button",
+            customTimelineIdDataAttr: "customtimeline-id"
+        }), this.renderAddToCustomTimeline = function(t, e) {
+            var i = this.toHtml(this.attr.addToCustomTimelineTemplate, {
+                accountKey: t,
+                customTimelineId: e
+            });
+            this.select("addToCustomTimelineSelector").html(i).removeClass("is-hidden"), this.on("uiInputSubmit", {
+                addToCustomTimelineInputSelector: this.addTweetToCustomTimeline
+            }), this.on("click", {
+                addToCustomTimelineButtonSelector: this.addTweetToCustomTimeline
+            }), this.on(document, "dataAddTweetToCustomTimelineSuccess", function(t, e) {
+                this.eventIsForCustomTimeline(t, e) && (this.spinnerButtonDisable(), e.result.response.errors && e.result.response.errors.length ? TD.controller.progressIndicator.addMessage(TD.i("Unable to add that Tweet")) : this.select("addToCustomTimelineInputSelector").val(""))
+            }), this.on("dataAddTweetToCustomTimelineError", function(t, e) {
+                this.eventIsForCustomTimeline(t, e) && (this.spinnerButtonDisable(), TD.controller.progressIndicator.addMessage(TD.i("Unable to add that Tweet")))
+            })
+        }, this.addTweetToCustomTimeline = function() {
+            var t = this.select("addToCustomTimelineInputSelector"),
+                e = t.data("account-key"),
+                i = t.data("customtimeline-id"),
+                s = t.val(),
+                n = TD.util.extractTweetIdFromPermalink(s);
+            n ? (this.trigger(document, "uiAddTweetToCustomTimeline", {
+                account: e,
+                id: i,
+                tweetId: n
+            }), this.spinnerButtonEnable()) : (TD.controller.progressIndicator.addMessage(TD.i("Can't recognize Tweet URL")), this.spinnerButtonDisable())
+        }
+    }
+    return s
+}), define("ui/with_edit_customtimeline", ["flight/lib/compose", "ui/with_template"], function(t, e) {
+    function i() {
+        t.mixin(this, [e]), this.defaultAttrs({
+            editCustomTimelineSelector: ".js-edit-customtimeline",
+            editCustomTimelineTemplate: "column/edit_customtimeline",
+            customTimelineTitleSelector: ".js-customtimeline-title",
+            customTimelineDescSelector: ".js-customtimeline-desc"
+        }), this.after("initialize", function() {
+            this.on(this.$node, "change uiInputSubmit", {
+                customTimelineTitleSelector: this.saveCustomTimelineState,
+                customTimelineDescSelector: this.saveCustomTimelineState
+            })
+        }), this.renderEditCustomTimeline = function(t, e) {
+            var i = this.column.getCustomTimeline();
+            if (i) {
+                var s = this.toHtml(this.attr.editCustomTimelineTemplate, {
+                    customTimelineName: i.name,
+                    customTimelineDescription: i.description,
+                    withTitle: t,
+                    withDescription: e
+                });
+                this.$editCustomTimeline = this.select("editCustomTimelineSelector"), this.$editCustomTimeline.html(s)
+            }
+        }, this.saveCustomTimelineState = function() {
+            var t = this.column.getCustomTimeline(),
+                e = this.select("customTimelineTitleSelector").val(),
+                i = this.select("customTimelineDescSelector").val(),
+                s = void 0 !== e && e !== t.name,
+                n = void 0 !== i && i !== t.description;
+            (s || n) && (this.trigger(document, "uiUpdateCustomTimeline", {
+                    account: t.account.getKey(),
+                    id: t.id,
+                    name: e,
+                    description: i
+                }), this.on(document, "dataCustomTimelineSuccess", function() {
+                    var t;
+                    this.off(document, "dataCustomTimelineSuccess"), s && n ? t = TD.i("Collection updated") : s ? t = TD.i("Title updated") : n && (t = TD.i("Description updated")), t && TD.controller.progressIndicator.addMessage(t)
+                }))
+        }
+    }
+    return i
+}), define("util/with_rebroadcast", [], function() {
+    function t() {
+        this.rebroadcast = function(t) {
+            return function(e) {
+                return this._isRebroadcasting ? void 0 : (this._isRebroadcasting = !0, this.trigger(e, t.apply(this, [].slice.call(arguments))), this._isRebroadcasting = !1, e.stopPropagation(), !1)
+            }.bind(this)
+        }
+    }
+    return t
+}), define("ui/with_will_animate", [], function() {
+    var t = _.memoize(function() {
+        var t = window.navigator.userAgent,
+            e = t.match(/Chrome\/([\d]+)\./),
+            i = t.match(/AppleWebKit\/([\d]+)\./);
+        return e && parseInt(e[1], 10) >= 35 ? !0 : "mac" === TD.util.getAppEnv() && i && parseInt(i[1], 10) >= 537 ? !0 : !1
+    });
+    return function() {
+        this.applyWillAnimate = function(e) {
+            t() && $(e).addClass("will-animate")
+        }
+    }
+}), define("ui/column", ["require", "flight/lib/component", "ui/asynchronous_form", "ui/custom_timeline_description", "ui/social_proof_for_tweet", "ui/with_column_selectors", "ui/with_template", "ui/with_transitions", "ui/with_dropdown", "ui/drag_drop/with_drag_drop", "ui/with_add_to_customtimeline", "ui/with_edit_customtimeline", "util/with_rebroadcast", "util/with_teardown", "ui/with_will_animate"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            columnMessageSelector: ".js-column-message",
+            columnMessageTemplate: "column/column_message",
+            filterErrorTemplate: "column/column_filter_error",
+            filterErrorClass: "filter-error",
+            showDetailViewClass: "is-shifted-1",
+            showSocialProofClass: "is-shifted-2",
+            socialProofSelector: ".js-column-social-proof",
+            columnStateDefault: "default",
+            columnStateDetailView: "detailView",
+            columnStateSocialProof: "socialProof",
+            columnScrollerIsAnimatingClass: "is-column-scroller-animating",
+            isNewClass: "is-new",
+            chirpSelector: ".js-stream-item",
+            tweetActionsSelector: ".js-tweet-actions",
+            tweetActionsVisibleClass: "is-visible",
+            animateInClass: "anim-rotate-in",
+            animateOutClass: "anim-rotate-out",
+            customTimelineDescriptionSelector: ".js-customtimeline-description",
+            shareColumnSelector: ".js-share-column",
+            focusId: null,
+            tweetImpressionTrackingPeriod: 250
+        }), this.after("initialize", function() {
+            this.applyWillAnimate(this.$node), this.columnKey = this.$node.data("column"), this.column = TD.controller.columnManager.get(this.columnKey), this.visibleChirpsTierTwo = {}, this.visibleChirpsTierThree = {};
+            var t, e, i, s = this.column.getCustomTimelineFeed(),
+                o = this.column.isOwnCustomTimeline();
+            o && (t = s.getMetadata(), e = t.id, i = TD.storage.Account.generateKeyFor("twitter", t.ownerId)), this.targetTopPosition = 0, this.$socialProofContainer = this.select("socialProofSelector"), this.$columnOptions = this.select("columnOptionsSelector"), this.$scrollContainer = this.select("scrollContainerSelector"), this.createNewHeightCache(), this.renderColumnMessage(), this.attr.tweetImpressionTrackingPeriod > 0 && (this.scribeTweetImpressions = _.throttle(this.scribeTweetImpressions.bind(this), this.attr.tweetImpressionTrackingPeriod)), this.setupDragDrop({
+                type: "tweet",
+                indicateDrop: !1,
+                predrag: function(t, e) {
+                    $(e.el).closest(this.attr.tweetActionsSelector).addClass(this.attr.tweetActionsVisibleClass)
+                },
+                dragend: function(t, e) {
+                    $(e.el).closest(this.attr.tweetActionsSelector).removeClass(this.attr.tweetActionsVisibleClass)
+                }
+            }), this.on("click", {
+                shareColumnSelector: this.handleShareColumnButtonClick
+            }), this.on("uiViewTimeline", this.handleViewTimeline), this.on("uiReferenceTimeline", this.handleReferenceTimeline), this.on(document, "uiShowDetailView", this.handleShowDetailView), this.on("uiDetailViewActive", this.handleDetailViewActive), this.on("uiDetailViewClosed", this.handleDetailViewClosed), this.on("uiCloseDetailView", this.handleCloseDetailView), this.on("uiSocialProofForTweetClosed", this.handleSocialProofClosed), this.on("uiShowSocialProof", this.handleShowSocialProof), this.on("uiCloseSocialProof", this.handleCloseSocialProof), this.on("uiColumnOptionsShown", this.handleColumnOptionsShown), this.on("uiHidingColumnOptions", this.handleHidingColumnOptions), this.on("uiShowingColumnOptions", this.handleShowingColumnOptions), this.on("uiColumnOptionsHidden", this.handleColumnOptionsHidden), this.on("uiMarkAllMessagesRead", this.handleMarkAllRead), this.on("uiColumnClearAction", this.handleColumnClear), this.on("uiReadStateChange", this.handleColumnReadStatus), this.on(document, "uiMessageThreadRead", this.handleMessageThreadRead), this.on(document, "uiMessageUnreadCount", this.handleMessageCount), this.on("uiTransitionExpandStart", {
+                columnOptionsContainerSelector: function(t, e) {
+                    this.fixColumnTop(), this.moveColumnTop(e.delta)
+                }.bind(this)
+            }), this.on("uiAccordionTotalHeightChanged", {
+                columnOptionsContainerSelector: this.fixColumnTop
+            }), this.on("uiColumnUpdateSearchFilter", this.handleUpdateSearchFilter), this.on("uiColumnUpdateMediaPreview", this.handleUpdateMediaPreview), this.on("dataColumnUpdatingFilters dataColumnUpdatingFeed", this.handleColumnUpdating), this.on("dataColumnFiltersUpdated dataColumnFeedUpdated", this.handleColumnUpdated), this.on("uiRemoveColumn", this.handleUiRemoveColumn), this.on(document, "dataSerializedColumn", this.handleSerializedColumn), this.on(document, "dataSettingsValues", this.handleSettingsChange), this.on(document, "uiColumnUpdateMediaPreview", this.handleMediaPreviewChange), this.on(document, "uiFocus", function(t, e) {
+                this.hasFocus = e.id === this.attr.focusId, this.hasFocus && this.scribeTweetImpressions()
+            }), this.on(this.$scrollContainer, "scroll", this.scribeTweetImpressions), this.on(document, "uiColumnVisibilities", this.handleColumnVisibilities), this.on(document, "uiColumnChirpsChanged", function(t, e) {
+                e.id === this.columnKey && this.scribeTweetImpressions()
+            }), this.on("uiDetailViewClosed uiTransitionExpandEnd", this.scribeTweetImpressions), this.on(document, TD.util.visibilityChangeEventName(), function() {
+                this.scribeTweetImpressions()
+            }), this.on(window, "beforeunload", this.scribeAllChirpsHidden), o && (this.setupDragDrop({
+                type: "tweet",
+                indicateDrop: !0,
+                dragenter: this.addDropTargetClass,
+                dragleave: this.removeDropTargetClass,
+                dragend: this.removeDropTargetClass,
+                drop: function(t, e) {
+                    var i = this.getAllCustomTimelineData();
+                    this.trigger("uiAddTweetToCustomTimeline", {
+                        id: i.metadata.id,
+                        tweetId: $(e.el).attr("data-tweet-id"),
+                        account: i.account
+                    })
+                }
+            }), this.renderAddToCustomTimeline(i, e), this.select("columnContentSelector").addClass("with-add-by-url"), this.on(document, "dataAddTweetToCustomTimelineSuccess", this.refreshCustomTimelineFeed.bind(this)), this.on(document, "dataRemoveTweetFromCustomTimelineSuccess", this.removeChripFromCustomTimelineFeed.bind(this)), this.on("uiRemoveTweetFromCustomTimeline", this.rebroadcast(this.transformRemoveTweetFromCustomTimeline))), s && n.attachTo(this.select("customTimelineDescriptionSelector"), {
+                maxCharCount: 160,
+                withAutoComplete: !1,
+                customTimelineId: s.getMetadata().id,
+                isOwnCustomTimeline: this.column.isOwnCustomTimeline(),
+                readOnly: this.column.temporary,
+                accountKey: s.getAccountKey(),
+                teardownOn: this.childTeardownEvent
+            })
+        }), this.setColumnState = function(t) {
+            switch (this.$node.removeClass([this.attr.showDetailViewClass, this.attr.columnStateDetailViewClass, this.attr.showSocialProofClass, this.attr.columnStateSocialProofClass].join(" ")), t) {
+                case this.attr.columnStateDetailView:
+                    this.$node.addClass(this.attr.showDetailViewClass), this.$node.addClass(this.attr.columnStateDetailViewClass);
+                    break;
+                case this.attr.columnStateSocialProof:
+                    this.$node.addClass(this.attr.showSocialProofClass), this.$node.addClass(this.attr.columnStateSocialProofClass)
+            }
+        }, this.handleDetailViewActive = function() {
+            this.setColumnState(this.attr.columnStateDetailView), this.scribeAllChirpsHidden()
+        }, this.handleDetailViewClosed = function() {
+            this.setColumnState(this.attr.columnStateDefault), this.column.detailViewComponent = null
+        }, this.handleCloseDetailView = function() {
+            this.column.detailViewComponent.destroy()
+        }, this.handleShowSocialProof = function(t, e) {
+            o.attachTo(this.$socialProofContainer, {
+                type: e.type,
+                tweetSummary: e.tweetSummary
+            }), this.setColumnState(this.attr.columnStateSocialProof)
+        }, this.handleSocialProofClosed = function() {
+            this.setColumnState(this.attr.columnStateDetailView)
+        }, this.handleCloseSocialProof = function() {
+            this.trigger(this.$socialProofContainer, "uiSocialProofForTweetClose")
+        }, this.handleUiRemoveColumn = function() {
+            this.scribeAllChirpsHidden(), this.teardown()
+        }, this.handleShareColumnButtonClick = function(t, e) {
+            var i = $(e.el);
+            this.toggleShareMenu(t, i)
+        }, this.toggleShareMenu = function(t, e) {
+            t.preventDefault(), t.stopPropagation();
+            var i = this.attr.dropdownPositions;
+            this.renderDropdown(e, "menus/column_share", {
+                isEmbeddable: this.column.isEmbeddable(),
+                isShareable: this.column.isShareable(),
+                isViewable: this.column.isViewable()
+            }, {
+                position: [i.offsetRight, i.underLeftIcon].join(" "),
+                toggle: !0
+            })
+        }, this.getCustomTimelineDataForPermalink = function() {
+            var t = this.column.getCustomTimelineFeed(),
+                e = t.getMetadata(),
+                i = TD.util.deMentionify(TD.cache.names.getScreenName(e.ownerId)),
+                s = TD.cache.names.getCustomTimelineName(e.id, e.ownerId);
+            if (!i) throw new Error("Could not get username from name cache.");
+            return {
+                username: i,
+                name: s,
+                id: e.id.replace(/[^\d]*/, "")
+            }
+        }, this.getCustomTimelinePermalinkURL = function() {
+            var t = this.getCustomTimelineDataForPermalink(),
+                e = this.toHtmlFromRaw("https://twitter.com/{{username}}/timelines/{{id}}", {
+                    username: t.username,
+                    id: t.id
+                });
+            return e
+        }, this.getCustomTimelinePermalinkURLWithDescription = function() {
+            var t = this.getCustomTimelineDataForPermalink(),
+                e = this.toHtmlFromRaw("“{{name}}” - @{{username}} “https://twitter.com/{{username}}/timelines/{{id}}”", {
+                    name: t.name,
+                    username: t.username,
+                    id: t.id
+                });
+            return e
+        }, this.handleViewTimeline = function() {
+            var t = this.getCustomTimelinePermalinkURL();
+            TD.util.openURL(t)
+        }, this.handleReferenceTimeline = function() {
+            var t = this.column.getColumnType();
+            "col_customtimeline" === t ? this.trigger("uiComposeTweet", {
+                appendText: this.getCustomTimelinePermalinkURLWithDescription()
+            }) : this.trigger("uiNeedsSerializedColumn", {
+                columnId: this.columnKey
+            })
+        }, this.handleShowingColumnOptions = function() {
+            var t = this.select("columnMessageSelector");
+            t.css({
+                opacity: 0
+            }), this.transitionCollapse(t)
+        }, this.handleColumnOptionsShown = function() {
+            s.attachTo(this.$columnOptions)
+        }, this.handleHidingColumnOptions = function() {
+            this.trigger(this.$columnOptions, "uiDestroyAsynchronousForm"), this.renderColumnMessage()
+        }, this.handleColumnOptionsHidden = function() {
+            var t = this.select("columnMessageSelector");
+            t.animate({
+                opacity: 1
+            }, 150, "easeInOutQuad")
+        }, this.renderColumnMessage = function() {
+            var t, e = this.select("columnMessageSelector");
+            this.column.hasActiveSearchFilters() ? (this.column.hasFilterError() ? (t = this.renderTemplate(this.attr.filterErrorTemplate), e.addClass(this.attr.filterErrorClass)) : (t = this.renderTemplate(this.attr.columnMessageTemplate, {
+                action: this.column.hasActiveActionFilters() && !this.column.isSingleActionTypeColumn(),
+                content: this.column.hasActiveContentFilters(),
+                user: this.column.hasActiveUserFilters(),
+                engagement: this.column.hasActiveEngagementFilters()
+            }), e.removeClass(this.attr.filterErrorClass)), this.animateElementContentHeight(e, t)) : this.animateElementContentHeight(e, "")
+        }, this.handleSettingsChange = function(t, e) {
+            (e.font_size || e.column_width) && (this.createNewHeightCache(), this.scribeTweetImpressions())
+        }, this.handleMediaPreviewChange = function() {
+            this.createNewHeightCache(), this.scribeTweetImpressions()
+        }, this.createNewHeightCache = function() {
+            this.chirpHeightCache = new TD.cache.LRUQueue(200)
+        }, this.moveColumnTop = function(t, e) {
+            if (0 !== t) {
+                var i = this.select("scrollContainerSelector"),
+                    s = this.select("columnUpdateGlow");
+                e = e || void 0 === e, this.targetTopPosition += t, e ? (this.transitionTop(i, this.attr.columnScrollerIsAnimatingClass, this.targetTopPosition), this.transitionTop(s, this.attr.columnScrollerIsAnimatingClass, this.targetTopPosition)) : (i.css("top", this.targetTopPosition), s.css("top", this.targetTopPosition))
+            }
+        }, this.getColumnTopError = function() {
+            var t, e = this.select("scrollContainerSelector"),
+                i = 0;
+            return e.hasClass(this.attr.columnScrollerIsAnimatingClass) || (t = this.select("columnOptionsContainerSelector").height(), i = t - this.targetTopPosition), i
+        }, this.fixColumnTop = function() {
+            this.moveColumnTop(this.getColumnTopError(), !1)
+        }, this.handleShowDetailView = function(t, e) {
+            var i, s;
+            e.columnKey === this.columnKey && e.chirpId && (i = this.column.findChirp(e.chirpId), s = this.column.findMostInterestingChirp(e.chirpId), this.trigger("uiColumnFocus", {
+                columnKey: e.columnKey
+            }), s instanceof TD.services.TwitterAction || $.publish("chirp/action", ["viewDetails", s, i, this.column]))
+        }, this.handleShowUserFilter = function() {
+            this.trigger(this.$columnOptions, "uiShowUserFilter")
+        }, this.handleShowContentFilter = function() {
+            this.trigger(this.$columnOptions, "uiShowContentFilter")
+        }, this.handleUpdateSearchFilter = function(t, e) {
+            this.column.updateSearchFilter(e)
+        }, this.handleUpdateMediaPreview = function(t, e) {
+            this.column.setMediaPreviewSize(e.value)
+        }, this.handleColumnUpdating = function() {
+            this.trigger(this.$columnOptions, "uiWaitingForAsyncResponse")
+        }, this.handleColumnUpdated = function() {
+            this.trigger(this.$columnOptions, "uiReceivedAsyncResponse")
+        }, this.handleMarkAllRead = function() {
+            this.column.markAllMessagesAsRead()
+        }, this.handleColumnClear = function() {
+            this.column.clear(), this.trigger("uiClearColumnAction", {
+                columnId: this.column.model.getKey()
+            });
+        }, this.handleSerializedColumn = function(t, e) {
+            if (e.columnId === this.columnKey) {
+                var i = this.toHtmlFromRaw("Check out this TweetDeck column: “{{url}}”", {
+                    name: this.column.model.getTitle(),
+                    url: e.url
+                });
+                this.trigger("uiComposeTweet", {
+                    appendText: i
+                })
+            }
+        }, this.handleMessageCount = function(t, e) {
+            if (this.columnKey === e.columnKey) {
+                var i = this.select("columnUnreadCountSelector"),
+                    s = i.text() || "0",
+                    n = "0" === s && "0" !== e.count,
+                    o = "0" !== s && "0" === e.count;
+                i.text(e.count), n && (this.stopAnimation(i, this.attr.animateOutClass), i.addClass("is-visible"), this.addAnimateClass(i, this.attr.animateInClass)), o && (this.stopAnimation(i, this.attr.animateInClass), this.addAnimateClass(i, this.attr.animateOutClass, function() {
+                    i.removeClass("is-visible")
+                }))
+            }
+        }, this.handleColumnReadStatus = function(t, e) {
+            this.column.isMessageColumn() || (e.columnKey = this.columnKey, this.$node.toggleClass(this.attr.isNewClass, !e.read))
+        }, this.handleMessageThreadRead = function() {
+            this.column.isMessageColumn() && this.trigger(document, "uiMessageUnreadCount", {
+                columnKey: this.columnKey,
+                count: this.column.unreadMessageCount()
+            })
+        }, this.handleColumnVisibilities = function(t, e) {
+            var i = this.column.visibility,
+                s = e[this.columnKey];
+            s && (this.column.visibility = s, i.visibleFraction !== s.visibleFraction && this.scribeTweetImpressions())
+        }, this.getChirpVerticalVisibileFraction = function(t, e) {
+            if (0 >= e) return 0;
+            var i = Math.min(this.scrollContainerHeight, Math.max(0, t)),
+                s = Math.min(this.scrollContainerHeight, Math.max(0, t + e)),
+                n = s - i;
+            return n / e
+        }, this.scribeTweetImpressions = function() {
+            var t = this.column.temporary || this.column.visibility.visibleFraction > .5,
+                e = this.$node.hasClass(this.attr.columnStateDetailViewClass) || this.$node.hasClass(this.attr.columnStateSocialProofClass);
+            if (TD.util.documentIsHidden() || e || !t) this.setAllChirpsHidden();
+            else {
+                var i = Date.now();
+                this.updateVisibleChirps(i), this.updateVisibleChirpsWithEndTimes(i), TD.controller.stats.tweetStreamImpression(this.column.getColumnType(), this.getChirpsToScribeTierTwo())
+            }
+            TD.controller.stats.tweetStreamImpression(this.column.getColumnType(), this.getChirpsToScribeTierThree(), !0), this.removeScribedChirpsFromVisibleChirps()
+        }, this.scribeAllChirpsHidden = function() {
+            this.setAllChirpsHidden(), TD.controller.stats.tweetStreamImpression(this.column.getColumnType(), this.getChirpsToScribeTierThree(), !0)
+        }, this.updateVisibleChirps = function(t) {
+            var e = !1;
+            this.scrollContainerHeight = this.$scrollContainer.height();
+            var i = null;
+            this.select("chirpSelector").each(function(s, n) {
+                var o = $(n),
+                    r = o.attr("data-key"),
+                    a = this.chirpHeightCache.get(r);
+                if (!a) {
+                    if (a = o.height(), 0 >= a) return;
+                    this.chirpHeightCache.enqueue(r, a)
+                }
+                var c;
+                c = null === i ? o.position().top : i + 1, i = c + a;
+                var h = this.getChirpVerticalVisibileFraction(c, a),
+                    l = h * (this.column.temporary ? 1 : this.column.visibility.visibleFraction);
+                if (0 >= l && e) return !1;
+                if (l > 0) {
+                    e = !0;
+                    var u = this.visibleChirpsTierTwo[r];
+                    u || (u = {
+                        scribed: !1
+                    }), this.visibleChirpsTierTwo[r] = u
+                }
+                if (l > .5) {
+                    var d = this.visibleChirpsTierThree[r];
+                    d || (d = {
+                        scribed: !1,
+                        visibilityStart: t
+                    }), d.knownVisible = !0, this.visibleChirpsTierThree[r] = d
+                }
+            }.bind(this))
+        }, this.updateVisibleChirpsWithEndTimes = function(t) {
+            Object.keys(this.visibleChirpsTierThree).forEach(function(e) {
+                var i = this.visibleChirpsTierThree[e];
+                i.knownVisible || (i.visibilityEnd = t), this.visibleChirpsTierThree[e] = i
+            }, this)
+        }, this.getChirpsToScribeTierThree = function() {
+            var t = [];
+            return Object.keys(this.visibleChirpsTierThree).forEach(function(e) {
+                var i, s = this.visibleChirpsTierThree[e];
+                s.visibilityStart && s.visibilityEnd && (s.visibilityEnd - s.visibilityStart > 500 && (i = this.column.findMostInterestingChirp(e), i instanceof TD.services.TwitterStatus && t.push(i.getScribeItemData(s))), s.scribed = !0, this.visibleChirpsTierThree[e] = s)
+            }, this), t
+        }, this.getChirpsToScribeTierTwo = function() {
+            var t = [];
+            return Object.keys(this.visibleChirpsTierTwo).forEach(function(e) {
+                var i, s = this.visibleChirpsTierTwo[e];
+                this.column.scribedImpressionIDs.get(e) || (i = this.column.findMostInterestingChirp(e), i instanceof TD.services.TwitterStatus && t.push(i.getScribeItemData(s)), this.column.scribedImpressionIDs.enqueue(e, !0)), s.scribed = !0, this.visibleChirpsTierTwo[e] = s
+            }, this), t
+        }, this.removeScribedChirpsFromVisibleChirps = function() {
+            Object.keys(this.visibleChirpsTierTwo).forEach(function(t) {
+                var e = this.visibleChirpsTierTwo[t];
+                e.scribed && delete this.visibleChirpsTierTwo[t]
+            }, this), Object.keys(this.visibleChirpsTierThree).forEach(function(t) {
+                var e = this.visibleChirpsTierThree[t];
+                e.scribed ? delete this.visibleChirpsTierThree[t] : (e.knownVisible = !1, this.visibleChirpsTierThree[t] = e)
+            }, this)
+        }, this.setAllChirpsHidden = function() {
+            var t = Date.now();
+            Object.keys(this.visibleChirpsTierThree).forEach(function(e) {
+                this.visibleChirpsTierThree[e].visibilityEnd = t
+            }, this)
+        }, this.getAllCustomTimelineData = function() {
+            var t = this.column.getCustomTimelineFeed(),
+                e = this.column.getCustomTimeline(),
+                i = t.getMetadata(),
+                s = e.account.getKey(),
+                n = TD.controller.feedManager.getPoller(t.getKey());
+            return {
+                feed: t,
+                customTimeline: e,
+                metadata: i,
+                account: s,
+                poller: n
+            }
+        }, this.customTimelineActionWasMe = function(t) {
+            var e = this.column.getCustomTimelineFeed();
+            if (e) {
+                var i = e.getMetadata();
+                if (i) return t.action.id === i.id
+            }
+        }, this.refreshCustomTimelineFeed = function(t, e) {
+            if (this.customTimelineActionWasMe(e)) {
+                var i = this.getAllCustomTimelineData();
+                i.poller.refresh()
+            }
+        }, this.removeChripFromCustomTimelineFeed = function(t, e) {
+            if (this.customTimelineActionWasMe(e)) {
+                var i = this.getAllCustomTimelineData();
+                i.poller.removeWhere(function(t) {
+                    return t.id === e.action.tweetId
+                })
+            }
+        }, this.transformRemoveTweetFromCustomTimeline = function(t, e) {
+            var i = this.getAllCustomTimelineData();
+            return {
+                id: i.metadata.id,
+                tweetId: e.tweetId,
+                account: i.account
+            }
+        }, this.isOfMetaType = function(t) {
+            if (!this.column || !this.column.getColumnType) return !1;
+            var e = this.column.getColumnType();
+            return e === TD.util.columnUtils.columnMetaTypes[t]
+        }, this.addDropTargetClass = function() {
+            this.$node.addClass(this.attr.dropTargetClass)
+        }, this.removeDropTargetClass = function() {
+            this.$node.removeClass(this.attr.dropTargetClass)
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/asynchronous_form"),
+        n = t("ui/custom_timeline_description"),
+        o = t("ui/social_proof_for_tweet"),
+        r = t("ui/with_column_selectors"),
+        a = t("ui/with_template"),
+        c = t("ui/with_transitions"),
+        h = t("ui/with_dropdown"),
+        l = t("ui/drag_drop/with_drag_drop"),
+        u = t("ui/with_add_to_customtimeline"),
+        d = t("ui/with_edit_customtimeline"),
+        m = t("util/with_rebroadcast"),
+        g = t("util/with_teardown"),
+        p = t("ui/with_will_animate");
+    return i(e, r, a, c, h, l, u, d, m, g, p)
+}),
+function(t, e) {
+    "function" == typeof define && define.amd ? define("util/animation_frame", [], e) : _.extend(t, e())
+}(this, function() {
+    var t = 0,
+        e = ["ms", "moz", "webkit", "o"],
+        i = {};
+    i = {
+        requestAnimationFrame: window.requestAnimationFrame,
+        cancelAnimationFrame: window.cancelAnimationFrame
+    };
+    for (var s = 0; s < e.length && !i.requestAnimationFrame; s += 1) i.requestAnimationFrame = window[e[s] + "RequestAnimationFrame"], i.cancelAnimationFrame = window[e[s] + "CancelAnimationFrame"] || window[e[s] + "CancelRequestAnimationFrame"];
+    return i.requestAnimationFrame || (i.requestAnimationFrame = function(e) {
+        var i = (new Date).getTime(),
+            s = Math.max(0, 16 - (i - t)),
+            n = window.setTimeout(function() {
+                e(i + s)
+            }, s);
+        return t = i + s, n
+    }), i.cancelAnimationFrame || (i.cancelAnimationFrame = function(t) {
+        clearTimeout(t)
+    }), i
+}), define("ui/with_easing", ["require", "util/animation_frame"], function(t) {
+    function e() {
+        this.easeFn = function(t) {
+            var e = s[t];
+            if (!e) throw "No such method";
+            return function(t, i, s) {
+                return i + s * e(t)
+            }
+        }, this.before("initialize", function() {
+            this.runningInterpolations = {}, this.easingGuid = 1
+        }), this.ease = function(t) {
+            if (t = t || {}, [typeof t.from, typeof t.time, typeof t.applicator].indexOf("undefined") > -1) throw new Error("animate requires from, time and applicator.");
+            var e = parseFloat(t.from);
+            if (!_.isNumber(e)) throw new Error("A numeric from value is required.");
+            if ("undefined" == typeof t.to && "undefined" == typeof t.delta) throw new Error("animate either a to amount or a delta.");
+            var s = parseFloat(t.to);
+            if ("undefined" != typeof t.delta && (s = e + parseFloat(t.delta)), !_.isNumber(s)) throw new Error("A numeric to value is required.");
+            var n = t.time;
+            _.isNumber(n) || (n = parseFloat(n));
+            var o = t.easing;
+            "function" != typeof o && (o = this.easeFn("linear"));
+            var r = t.applicator;
+            if ("function" != typeof r) throw new Error("applicator must be a function.");
+            var a = t.name,
+                c = t.done || function() {}, h = Date.now(),
+                l = s - e;
+            0 !== l && (a && (this.runningInterpolations[a] = this.easingGuid), i(function u(t) {
+                var s = Date.now() - h,
+                    d = s / n;
+                return s >= n ? (r(o(1, e, l)), c(s)) : a && this.runningInterpolations[a] !== t ? c(s) : (i(u.bind(this, t)), r(o(d, e, l), e, d), void 0)
+            }.bind(this, this.easingGuid)), this.easingGuid += 1)
+        }
+    }
+    var i = t("util/animation_frame").requestAnimationFrame,
+        s = {
+            linear: function(t) {
+                return t
+            },
+            inQuad: function(t) {
+                return t * t
+            },
+            outQuad: function(t) {
+                return t * (2 - t)
+            },
+            inOutQuad: function(t) {
+                return .5 > t ? 2 * t * t : -1 + (4 - 2 * t) * t
+            },
+            inCubic: function(t) {
+                return t * t * t
+            },
+            outCubic: function(t) {
+                return --t * t * t + 1
+            },
+            inOutCubic: function(t) {
+                return .5 > t ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1
+            },
+            inQuart: function(t) {
+                return t * t * t * t
+            },
+            outQuart: function(t) {
+                return 1 - --t * t * t * t
+            },
+            inOutQuart: function(t) {
+                return .5 > t ? 8 * t * t * t * t : 1 - 8 * --t * t * t * t
+            },
+            inQuint: function(t) {
+                return t * t * t * t * t
+            },
+            outQuint: function(t) {
+                return 1 + --t * t * t * t * t
+            },
+            inOutQuint: function(t) {
+                return .5 > t ? 16 * t * t * t * t * t : 1 + 16 * --t * t * t * t * t
+            }
+        };
+    return e
+}), define("ui/drag_drop/with_drag_scroll", ["require", "flight/lib/compose", "ui/with_easing"], function(t) {
+    function e() {
+        i.mixin(this, [s]), this.defaultAttrs({
+            defaultDragScrollConfig: {
+                regionSize: 20,
+                maxSpeed: 400,
+                throttlePeriod: 200,
+                horizontal: !0,
+                vertical: !1,
+                deltaFn: function(t) {
+                    return t
+                }
+            }
+        }), this.before("initialize", function() {
+            this.animateScrollLeft = this.animateScroll.bind(this, "scrollLeft"), this.animateScrollTop = this.animateScroll.bind(this, "scrollTop"), this.dragScrollId = _.uniqueId("drag-scroll")
+        }), this.handleDrag = function(t, e, i, s) {
+            if (this.justDropped) return this.justDropped = !1, void 0;
+            var n = $(s.el),
+                o = this.mousePositionRelativeToElement(n, i.originalEvent),
+                r = {};
+            r.left = o.x / n.width() * 100, r.right = 100 - r.left, r.top = o.y / n.height() * 100, r.bottom = 100 - r.top;
+            var a = {};
+            a.left = -this.percToDelta(r.left, t), a.right = this.percToDelta(r.right, t), a.up = -this.percToDelta(r.top, t), a.down = this.percToDelta(r.bottom, t), t.horizontal !== !1 && (r.left < t.regionSize ? this.animateScrollLeft(n, "left", a.left, t, e.left) : r.right < t.regionSize && this.animateScrollLeft(n, "right", a.right, t, e.right)), t.vertical !== !1 && (r.top < t.regionSize ? this.animateScrollTop(n, "up", a.up, t, e.up) : r.bottom < t.regionSize && this.animateScrollTop(n, "down", a.down, t, e.down))
+        }, this.setupDragScroll = function(t, e) {
+            e = _.defaults(e || {}, this.attr.defaultDragScrollConfig);
+            var i = {
+                up: {},
+                down: {},
+                left: {},
+                right: {}
+            }, s = {};
+            s[t] = _.throttle(this.handleDrag.bind(this, e, i), e.throttlePeriod), this.on("dragover", s), this.on("drop", function() {
+                this.justDropped = !0
+            })
+        }, this.percToDelta = function(t, e) {
+            var i = t / e.regionSize;
+            return e.maxSpeed - e.maxSpeed * i
+        }, this.animateScroll = function(t, e, i, s, n, o) {
+            var r = $(e);
+            if (!r[t]) throw new Error("$elem has no method " + t);
+            o.startTime || (o.startTime = Date.now()), clearTimeout(o.timeout), o.timeout = setTimeout(function() {
+                delete o.startTime
+            }, 1.1 * n.throttlePeriod);
+            var a = Date.now() - o.startTime,
+                c = n.deltaFn.call(this, s, i, h, a),
+                h = r[t]();
+            this.ease({
+                name: this.dragScrollId,
+                from: h,
+                delta: c,
+                time: n.throttlePeriod,
+                applicator: function(e) {
+                    r[t](e)
+                }
+            })
+        }, this.getMousePosition = function(t) {
+            var e = 0,
+                i = 0;
+            return t || (t = window.event), t.pageX || t.pageY ? (e = t.pageX, i = t.pageY) : (t.clientX || t.clientY) && (e = t.clientX + document.body.scrollLeft + document.documentElement.scrollLeft, i = t.clientY + document.body.scrollTop + document.documentElement.scrollTop), {
+                x: e,
+                y: i
+            }
+        }, this.mousePositionRelativeToElement = function(t, e) {
+            var i = $(t),
+                s = i.offset(),
+                n = this.getMousePosition(e);
+            return n.x -= s.left + parseInt(i.css("paddingLeft"), 10) + parseInt(i.css("borderLeftWidth"), 10), n.y -= s.top + parseInt(i.css("paddingTop"), 10) + parseInt(i.css("borderTopWidth"), 10), n
+        }
+    }
+    var i = t("flight/lib/compose"),
+        s = t("ui/with_easing");
+    return e
+}), define("ui/column_controller", ["require", "td/UI/columns", "flight/lib/component", "ui/column", "ui/with_column_selectors", "ui/with_template", "ui/with_transitions", "ui/drag_drop/with_drag_scroll"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            columnDragHandleSelector: ".js-column-drag-handle",
             hideTweetDragHandlesClass: "without-tweet-drag-handles",
-            columnsLeftMargin: 10,
-            slideMinDuration: 200,
-            slideMaxDuration: 500,
-            extraSlideTimePer100Px: 20,
-            scrollChirpToTopDuration: 750,
-            scrollChirpToTopOffset: 50,
             scrollDebounceTime: 200,
             focusId: null,
             dragScrollActivationOffset: {
@@ -5958,37 +6385,27 @@ function(t, e) {
                 right: 800
             },
             dragScrollActivationResponseDamping: 10
-        }), this.handleColumnFocus = function(t, e) {
-            var i;
-            void 0 !== e.index ? i = this.getKeyForColumnAtIndex(e.index) : e.last ? i = this.getKeyForLastColumn() : e.columnKey && (i = e.columnKey), i && TD.ui.columns.scrollColumnToCenter(i)
-        }, this.handleScrollToColumn = function(t, e) {
-            var i, s, n, o = this.getColumnElementByKey(e.column.model.getKey()),
-                r = this.select("containerSelector"),
-                a = this.select("columnsContainerSelector"),
-                c = o.outerWidth(),
-                h = a.width(),
-                l = r.scrollLeft(),
-                u = o.position().left,
-                d = u + c;
-            u >= 0 && h >= d || (n = "left" === e.direction ? l + u - e.offset : l + d + e.offset - h, n !== l && (r.stop(), i = Math.abs(n - l), s = this.attr.slideMinDuration + i / 100 * this.attr.extraSlideTimePer100Px, s = Math.min(s, this.attr.slideMaxDuration), r.animate({
-                scrollLeft: n
-            }, s, "easeInOutQuad")))
-        }, this.handleScrollToChirp = function(t, e) {
-            if (e.$chirp && e.columnKey && 0 !== e.$chirp.length) {
-                var i, s, n = this.getColumnScrollContainerByKey(e.columnKey),
-                    o = n.scrollTop(),
-                    r = e.$chirp.position().top + o,
-                    a = n.innerHeight();
-                "up" === e.direction ? (i = r - e.offset, o > i && n.stop().animate({
-                    scrollTop: i
-                }, 100)) : (s = r + e.$chirp.outerHeight() + e.offset, s > o + a && (i = s - a, n.stop().animate({
-                    scrollTop: i
-                }, 100)))
-            }
-        }, this.handleColumnRendered = function(t, e) {
-            e.$column.trigger("itemadded.dragdroplist", {
-                itemId: e.column
-            }), o.attachTo(e.$column, {
+        }), this.after("initialize", function() {
+            this.$scrollContainer = this.select("appColumnsContainerSelector"), this.on(document, "dataColumnOrder", this.setTweetDragHandleState), this.on(document, "uiColumnRendered", this.handleColumnRendered), this.select("columnSelector").each(function(t, e) {
+                var i = $(e);
+                s.attachTo(i, {
+                    focusId: this.attr.focusId
+                })
+            }.bind(this)), this.setupDragScroll("appColumnsContainerSelector", {
+                deltaFn: function(t, e, i, s) {
+                    if (!this.attr.dragScrollActivationOffset[e]) return t;
+                    var n = this.attr.dragScrollActivationOffset[e] / 10,
+                        o = this.attr.dragScrollActivationResponseDamping,
+                        r = 1 / (1 + Math.pow(Math.E, n - s / o));
+                    return parseFloat((t * r).toFixed(4))
+                }
+            });
+            var t = ["dataColumnOrder", "uiToggleDockedComposeComplete", "uiToggleNavBarWidth", "uiDrawerTransitionComplete"];
+            this.on(document, t.join(" "), this.calculateColumnVisibilities), this.on(this.$scrollContainer, "scroll", _.debounce(this.calculateColumnVisibilities.bind(this), this.attr.scrollDebounceTime)), this.on(window, "resize", this.calculateColumnVisibilities), TD.util.isTouchDevice() && this.on(this.$scrollContainer, "scroll", function() {
+                TD.util.cancelFastClick()
+            }), this.trigger("uiNeedsColumnOrder")
+        }), this.handleColumnRendered = function(t, e) {
+            s.attachTo(e.$column, {
                 column: e.column,
                 focusId: this.attr.focusId
             })
@@ -6007,44 +6424,21 @@ function(t, e) {
                 }, t.visibleFraction = t.visibleWidth / t.columnWidth, i[s.data("column")] = t
             }), this.trigger("uiColumnVisibilities", i)
         }, this.setTweetDragHandleState = function(t, e) {
-            var i = e.columns.some(function(t) {
-                return t.isOwnCustomTimeline()
+            var i = e.columnOrder.some(function(t) {
+                return TD.controller.columnManager.get(t).isOwnCustomTimeline()
             }),
                 s = !i;
             this.select("columnsContainerSelector").toggleClass(this.attr.hideTweetDragHandlesClass, s)
-        }, this.after("initialize", function() {
-            this.$scrollContainer = this.select("containerSelector"), this.on(document, "uiColumnFocus", this.handleColumnFocus), this.on(document, "uiColumnsScrollToColumn", this.handleScrollToColumn), this.on(document, "uiColumnsScrollToChirp", this.handleScrollToChirp), this.on(document, "dataColumnOrder", this.setTweetDragHandleState), this.on(document, "uiColumnRendered", this.handleColumnRendered), this.select("columnSelector").each(function(t, e) {
-                var i = $(e);
-                o.attachTo(i, {
-                    focusId: this.attr.focusId
-                })
-            }.bind(this)), this.setupDragScroll("appColumnsContainerSelector", {
-                deltaFn: function(t, e, i, s) {
-                    if (!this.attr.dragScrollActivationOffset[e]) return t;
-                    var n = this.attr.dragScrollActivationOffset[e] / 10,
-                        o = this.attr.dragScrollActivationResponseDamping,
-                        r = 1 / (1 + Math.pow(Math.E, n - s / o));
-                    return (t * r).toFixed(4)
-                }
-            }), this.select("columnsContainerSelector").dragdroplist({
-                selector: this.attr.columnSelector,
-                contentSelector: this.attr.columnSelector,
-                handle: this.attr.columnDragHandleSelector,
-                $boundary: this.select("appColumnsContainerSelector"),
-                orientation: "horizontal",
-                tagName: "section",
-                scroll_speed: 24
-            }).on("dropped.dragdroplist", function() {
-                var t = [];
-                $(".js-column").each(function() {
-                    t.push($(this).attr("data-column"))
-                }), TD.storage.clientController.client.setColumnOrder(t)
-            }), this.on(document, "dataColumnOrder uiToggleDockedComposeComplete uiToggleNavBarWidth", this.calculateColumnVisibilities), this.on(this.$scrollContainer, "scroll", _.debounce(this.calculateColumnVisibilities.bind(this), this.attr.scrollDebounceTime)), this.on(window, "resize", this.calculateColumnVisibilities), TD.util.isTouchDevice() && this.on(this.$scrollContainer, "scroll", function() {
-                TD.util.cancelFastClick()
-            })
-        })
+        }
     }
-    return t(r, e, i, s, n)
+    t("td/UI/columns");
+    var i = t("flight/lib/component"),
+        s = t("ui/column"),
+        n = t("ui/with_column_selectors"),
+        o = t("ui/with_template"),
+        r = t("ui/with_transitions"),
+        a = t("ui/drag_drop/with_drag_scroll");
+    return i(e, n, o, r, a)
 }), define("ui/grid", ["flight/lib/component", "ui/with_focus", "ui/with_column_selectors"], function(t, e, i) {
     function s() {
         this.defaultAttrs({
@@ -6057,10 +6451,10 @@ function(t, e) {
             autoFocus: !0,
             pagingEasingFunction: "easeOutQuad"
         }), this.after("initialize", function() {
-            this.selectedColumn = null, this.$selectedChirp = $(), this.columnIndex = null, this.chirpCenter = null, this.scrollDirection = this.attr.down, this.chirpOffsetTop = null, this.on(document, "uiKeyLeft", this.moveSelection("left")), this.on(document, "uiKeyUp", this.moveSelection("up")), this.on(document, "uiKeyRight", this.moveSelection("right")), this.on(document, "uiKeyDown", this.moveSelection("down")), this.on(document, "uiGridBack", this.handleBack), this.on(document, "uiGridClearSelection", this.handleClearSelection), this.on(document, "uiColumnFocus", this.handleColumnFocus), this.on(document, "uiGridPageDown", this.handlePagingFactory("down")), this.on(document, "uiGridPageUp", this.handlePagingFactory("up")), this.on(document, "uiGridHome", this.handleGridHome), this.on(document, "uiGridEnd", this.handleGridEnd), this.on(document, "uiKeyEnter", this.tweetActionFactory("viewDetails")), this.on(document, "uiGridReply", this.tweetActionFactory("reply")), this.on(document, "uiGridFavorite", this.tweetActionFactory("favorite")), this.on(document, "uiGridRetweet", this.tweetActionFactory("retweet")), this.on(document, "uiGridDirectMessage", this.tweetActionFactory("dm")), this.on(document, "uiGridProfile", this.tweetActionFactory("profile")), this.on(document, "uiGridCustomTimeline", this.tweetActionFactory("customTimeline")), this.on(document, "uiDetailViewActive", this.handleDetailViewActive), this.on(document, "uiShowSocialProof", this.handleDetailViewActive), this.on(document, "uiDetailViewClosed", this.handleDetailClosed), this.on(document, "dataColumnOrder", this.handleColumnOrderData), this.trigger("uiNeedsColumnOrder", {
-                source: this.attr.id
-            })
-        }), this.setSelectedColumn = function(t) {
+            this.selectedColumn = null, this.$selectedChirp = $(), this.columnIndex = null, this.chirpCenter = null, this.scrollDirection = this.attr.down, this.chirpOffsetTop = null, this.on(document, "uiKeyLeft", this.moveSelection("left")), this.on(document, "uiKeyUp", this.moveSelection("up")), this.on(document, "uiKeyRight", this.moveSelection("right")), this.on(document, "uiKeyDown", this.moveSelection("down")), this.on(document, "uiGridBack", this.handleBack), this.on(document, "uiGridClearSelection", this.handleClearSelection), this.on(document, "uiColumnFocus", this.handleColumnFocus), this.on(document, "uiGridPageDown", this.handlePagingFactory("down")), this.on(document, "uiGridPageUp", this.handlePagingFactory("up")), this.on(document, "uiGridHome", this.handleGridHome), this.on(document, "uiGridEnd", this.handleGridEnd), this.on(document, "uiKeyEnter", this.tweetActionFactory("viewDetails")), this.on(document, "uiGridReply", this.tweetActionFactory("reply")), this.on(document, "uiGridFavorite", this.tweetActionFactory("favorite")), this.on(document, "uiGridRetweet", this.tweetActionFactory("retweet")), this.on(document, "uiGridDirectMessage", this.tweetActionFactory("dm")), this.on(document, "uiGridProfile", this.tweetActionFactory("profile")), this.on(document, "uiGridCustomTimeline", this.tweetActionFactory("customTimeline")), this.on(document, "uiDetailViewActive", this.handleDetailViewActive), this.on(document, "uiShowSocialProof", this.handleDetailViewActive), this.on(document, "uiDetailViewClosed", this.handleDetailClosed), this.on(document, "dataColumns", this.handleDataColumns), this.trigger("uiNeedsColumns")
+        }), this.handleDataColumns = function(t, e) {
+            e.columns && (this.columns = e.columns, this.columnIndex = this.columns.indexOf(this.selectedColumn), -1 === this.columnIndex && (this.selectedColumn = null, this.$selectedChirp = $(), this.offset = null))
+        }, this.setSelectedColumn = function(t) {
             var e = this.columns.length;
             0 > t ? t = 0 : t >= e && (t = e - 1), this.columns[t] !== this.selectedColumn && (clearTimeout(this.chirpCenterTimeout), this.chirpCenter = this.calculateChirpCenterRelativeToColumn(this.selectedColumn, this.$selectedChirp), this.chirpCenterTimeout = setTimeout(function() {
                 this.chirpCenter = null
@@ -6128,7 +6522,7 @@ function(t, e) {
                                 this.selectNextChirp()
                         }
                         this.trigger("uiColumnsScrollToColumn", {
-                            column: this.selectedColumn,
+                            columnKey: this.selectedColumn.model.getKey(),
                             source: this.attr.id,
                             offset: this.attr.columnScrollOffset,
                             direction: this.scrollDirection
@@ -6136,13 +6530,9 @@ function(t, e) {
                     }
             }, i = _.throttle(e.bind(this), 100);
             return i
-        }, this.handleColumnOrderData = function(t, e) {
-            e.columns && (this.columns = e.columns, this.columnIndex = null, this.selectedColumn && this.columns.forEach(function(t, e) {
-                this.selectedColumn === t && (this.columnIndex = e)
-            }.bind(this)), null === this.columnIndex && (this.selectedColumn = null, this.$selectedChirp = $(), this.offset = null))
         }, this.selectColumnByKey = function(t) {
             if (this.selectedColumn && this.selectedColumn.model.getKey() === t) return !1;
-            for (var e = 0; e < this.columns.length; e++)
+            for (var e = 0; e < this.columns.length; e += 1)
                 if (this.columns[e].model.getKey() === t) return this.columnIndex = e, this.selectedColumn = this.columns[e], !0;
             return !1
         }, this.selectColumnByIndex = function(t) {
@@ -6165,7 +6555,7 @@ function(t, e) {
             })
         }, this.handleBack = function() {
             var t, e, i, s;
-            this.hasFocus && (s = this.getColumnElementByKey(this.selectedColumn.model.getKey()), this.isInDetailView() ? (t = this.selectedColumn.detailViewComponent.parentChirp, i = this.selectedColumn.getChirpContainer(), e = i.find('[data-key="' + t.id + '"]'), s.trigger("uiCloseDetailView"), e.addClass(this.attr.isSelectedClass), this.$selectedChirp = e, this.scrollToChirp("down")) : this.isInDetailViewLevel2() && s.trigger("uiCloseSocialProof"))
+            this.hasFocus && (s = this.getColumnElementByKey(this.selectedColumn.model.getKey()), this.isInDetailView() ? (t = this.selectedColumn.detailViewComponent.parentChirp, i = this.selectedColumn.ui.getChirpContainer(), e = i.find('[data-key="' + t.id + '"]'), s.trigger("uiCloseDetailView"), e.addClass(this.attr.isSelectedClass), this.$selectedChirp = e, this.scrollToChirp("down")) : this.isInDetailViewLevel2() && s.trigger("uiCloseSocialProof"))
         }, this.handleClearSelection = function() {
             this.hasFocus && this.clearSelection()
         }, this.isInDetailView = function() {
@@ -6257,6 +6647,68 @@ function(t, e) {
         }
     }
     return t(s, e, i)
+}), define("ui/grid_scroll", ["require", "flight/lib/component", "ui/with_column_selectors"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            columnsLeftMargin: 10,
+            slideMinDuration: 200,
+            slideMaxDuration: 500,
+            extraSlideTimePer100Px: 20,
+            columnGlowDuration: 500
+        }), this.after("initialize", function() {
+            this.on(document, "uiColumnFocus", this.handleColumnFocus), this.on(document, "uiColumnsScrollToColumn", this.handleScrollToColumn), this.on(document, "uiColumnsScrollColumnToCenter", this.handleScrollColumnToCenter), this.on(document, "uiColumnsScrollToChirp", this.handleScrollToChirp)
+        }), this.handleColumnFocus = function(t, e) {
+            var i;
+            void 0 !== e.index ? i = this.getKeyForColumnAtIndex(e.index) : e.last ? i = this.getKeyForLastColumn() : e.columnKey && (i = e.columnKey), i && this.trigger("uiColumnsScrollColumnToCenter", {
+                columnKey: i
+            })
+        }, this.handleScrollToColumn = function(t, e) {
+            var i, s = this.getColumnElementByKey(e.columnKey),
+                n = this.select("appColumnsContainerSelector"),
+                o = this.select("columnsContainerSelector"),
+                r = s.outerWidth(),
+                a = o.width(),
+                c = n.scrollLeft(),
+                h = s.position().left,
+                l = h + r;
+            h >= 0 && a >= l || (i = "left" === e.direction ? c + h - e.offset : c + l + e.offset - a, this.scrollColumnToOffset(e.columnKey, i, !1))
+        }, this.handleScrollColumnToCenter = function(t, e) {
+            var i, s, n, o, r, a, c = this.getColumnElementByKey(e.columnKey),
+                h = this.select("appColumnsContainerSelector"),
+                l = this.select("columnsContainerSelector"),
+                u = h.innerWidth() / c.outerWidth(!0),
+                d = h.scrollLeft(),
+                m = !0;
+            3.05 >= u ? (a = parseInt(l.css("padding-left"), 10), i = d + c.position().left - a) : (s = c.outerWidth(), n = h.get(0).scrollWidth - this.attr.columnsLeftMargin, o = l.width(), r = c.offset().left, i = d + r - (o - s) / 2, i = Math.min(i, n - o), i = Math.max(i, 0)), 2 > u && (m = !1), this.scrollColumnToOffset(e.columnKey, i, m)
+        }, this.scrollColumnToOffset = function(t, e, i) {
+            var s, n, o = this.select("appColumnsContainerSelector"),
+                r = o.scrollLeft();
+            e !== r ? (o.stop(), n = Math.abs(e - r), s = this.attr.slideMinDuration + n / 100 * this.attr.extraSlideTimePer100Px, s = Math.min(s, this.attr.slideMaxDuration), o.animate({
+                scrollLeft: e
+            }, s, "easeInOutQuad", function() {
+                i && TD.ui.columns.focusColumn(t, this.attr.columnGlowDuration), this.getColumnElementByKey(t).trigger("uiColumnScrolled", {
+                    columnKey: t
+                })
+            }.bind(this))) : (i && TD.ui.columns.focusColumn(t, this.attr.columnGlowDuration), this.getColumnElementByKey(t).trigger("uiColumnScrolled", {
+                columnKey: t
+            }))
+        }, this.handleScrollToChirp = function(t, e) {
+            if (e.$chirp && e.columnKey && 0 !== e.$chirp.length) {
+                var i, s, n = this.getColumnScrollContainerByKey(e.columnKey),
+                    o = n.scrollTop(),
+                    r = e.$chirp.position().top + o,
+                    a = n.innerHeight();
+                "up" === e.direction ? (i = r - e.offset, o > i && n.stop().animate({
+                    scrollTop: i
+                }, 100)) : (s = r + e.$chirp.outerHeight() + e.offset, s > o + a && (i = s - a, n.stop().animate({
+                    scrollTop: i
+                }, 100)))
+            }
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_column_selectors");
+    return i(e, s)
 }), define("ui/focus_controller", ["flight/lib/component"], function(t) {
     var e = function() {
         this.handleFocusRequest = function(t, e) {
@@ -6449,8 +6901,8 @@ function(t, e) {
         })
     };
     return t(e)
-}), define("ui/relationship", ["flight/lib/component"], function(t) {
-    var e = function() {
+}), define("ui/relationship", ["require", "flight/lib/component"], function(t) {
+    function e() {
         this.defaultAttrs({
             states: {
                 unknown: "unknown",
@@ -6466,14 +6918,18 @@ function(t, e) {
                 blocking: "s-blocking",
                 me: "s-thats-you"
             },
-            followButton: ".js-follow-button",
-            menuButton: ".js-profile-menu"
+            followButton: ".js-follow-button"
+        }), this.after("initialize", function() {
+            this.account = this.attr.account, this.twitterUser = this.attr.twitterUser, this.state = this.attr.states.unknown, this.on(document, "dataRelationship", this.handleRelationshipData), this.on("click", {
+                followButton: this.handleFollowButtonClick
+            }), this.on(document, "uiFollowAction dataUnfollowActionError", this.handleActionFactory("following")), this.on(document, "uiUnfollowAction dataFollowActionError", this.handleActionFactory("notFollowing")), this.on(document, "uiBlockAction dataUnblockActionError", this.handleActionFactory("blocking")), this.on(document, "uiUnblockAction dataBlockActionError dataReportActionError", this.handleActionFactory("notFollowing")), $.subscribe("/user/" + this.screenName + "/block", this.handlePubSubEvent("blocking")), $.subscribe("/user/" + this.screenName + "/unblock", this.handlePubSubEvent("notFollowing")), this.attr.closeEvent && this.on(this.attr.closeEvent, this.destroy), this.trigger("uiNeedsRelationship", {
+                account: this.account,
+                screenName: this.twitterUser.screenName
+            })
         }), this.resetState = function() {
             this.$node.removeClass(this.attr.classNamesForStates[this.state])
         }, this.setState = function(t, e) {
             this.state = t.following ? this.attr.states.following : this.attr.states.notFollowing, t.id === e.id && (this.state = this.attr.states.me), t.blocking && (this.state = this.attr.states.blocking)
-        }, this.handleMenuButtonClick = function(t) {
-            this.menu ? this.menu.destroy() : (this.menu = new TD.components.ProfileMenu(this.select("menuButton"), TD.components.DropDown.POSITION_LEFT, this.twitterUser), t.stopPropagation())
         }, this.handleFollowButtonClick = function(t) {
             var e = {
                 account: this.account,
@@ -6490,9 +6946,7 @@ function(t, e) {
                     this.trigger("uiUnblockAction", e);
                     break;
                 case this.attr.states.me:
-                    TD.util.openURL("https://twitter.com/settings/profile");
-                    break;
-                case this.attr.states.unknown:
+                    TD.util.openURL("https://twitter.com/settings/profile")
             }
             t.stopPropagation()
         }, this.enableButton = function() {
@@ -6517,19 +6971,10 @@ function(t, e) {
             return e.bind(this)
         }, this.destroy = function(t) {
             t.stopPropagation(), this.teardown()
-        }, this.destroyMenuReference = function() {
-            this.menu = null
-        }, this.after("initialize", function() {
-            this.account = this.attr.account, this.twitterUser = this.attr.twitterUser, this.state = this.attr.states.unknown, this.on(document, "dataRelationship", this.handleRelationshipData), this.on("click", {
-                followButton: this.handleFollowButtonClick,
-                menuButton: this.handleMenuButtonClick
-            }), this.on("td-dropdown-close", this.destroyMenuReference), this.on(document, "uiFollowAction dataUnfollowActionError", this.handleActionFactory("following")), this.on(document, "uiUnfollowAction dataFollowActionError", this.handleActionFactory("notFollowing")), this.on(document, "uiBlockAction dataUnblockActionError", this.handleActionFactory("blocking")), this.on(document, "uiUnblockAction dataBlockActionError dataReportActionError", this.handleActionFactory("notFollowing")), $.subscribe("/user/" + this.screenName + "/block", this.handlePubSubEvent("blocking")), $.subscribe("/user/" + this.screenName + "/unblock", this.handlePubSubEvent("notFollowing")), this.attr.closeEvent && this.on(this.attr.closeEvent, this.destroy), this.trigger("uiNeedsRelationship", {
-                account: this.account,
-                screenName: this.twitterUser.screenName
-            })
-        })
-    };
-    return t(e)
+        }
+    }
+    var i = t("flight/lib/component");
+    return i(e)
 }), define("util/notifications", [], function() {
     var t = {};
     return t.publishToQueue = function(t, e) {
@@ -6570,7 +7015,7 @@ function(t, e) {
             socialProofSelector: ".js-social-proof",
             followFromSelector: ".js-action-follow",
             followStateSelector: ".prf-follow-status",
-            closeEvent: "uiCloseTwitterProfile",
+            closeEvent: "uiTwitterProfileClosing",
             numUsersInSocialProof: 3,
             isSocialProofAnimatingClass: "social-proof-animating"
         }), this.handleTwitterAccount = function(t, e) {
@@ -6717,10 +7162,10 @@ function(t, e) {
                 submitButton: this.handleSubmitclick,
                 abuseLinks: this.handleAbuseLinkClick,
                 dismissButton: this.handleManualDismiss
-            }), this.on(this.$node, "click", this.handleOffNodeDismiss), this.on(this.attr.closeEvent, this.teardown)
+            }), this.on(this.$node, "click", this.handleOffNodeDismiss), this.on(this.attr.closeEvent, this.teardown), this.select("inputs").filter(":checked").trigger("change")
         }), this.handleInputClick = function(t) {
             var e = $(t.target).val();
-            "block" === e ? n = $(t.target).prop("checked") : this.setBlockCheckbox(e), this.select("submitButton").text("abusive" === e ? TD.i("Next") : TD.i("Submit")), this.select("submitButton").prop("disabled", !Boolean(this.select("inputs").filter(":checked").length))
+            "block" === e ? n = $(t.target).prop("checked") : this.setBlockCheckbox(e), "abusive" === e ? this.select("submitButton").text(TD.i("Next")) : this.select("submitButton").text(TD.i("Submit")), this.select("submitButton").prop("disabled", !Boolean(this.select("inputs").filter(":checked").length))
         }, this.handleSubmitclick = function() {
             var t = this.select("optionRadios").filter(":checked").val(),
                 e = $("input[name=report-block]").is(":checked");
@@ -6739,10 +7184,10 @@ function(t, e) {
                 twitterUser: this.attr.twitterUser
             }), "abusive" !== t && this.dismiss()
         }, this.setBlockCheckbox = function(t) {
-            this.select("blockCheckbox").prop("spam" === t ? {
+            "spam" === t ? this.select("blockCheckbox").prop({
                 checked: !0,
                 disabled: !0
-            } : {
+            }) : this.select("blockCheckbox").prop({
                 disabled: !1,
                 checked: null !== n ? n : !1
             })
@@ -6846,10 +7291,10 @@ function(t, e) {
             function o(n, o) {
                 if (o.request.tweetId === i && o.request.accountKey === s) {
                     var r = o.error.responseJSON;
-                    return r && 179 === r.errors[0].code ? void t(e, "protected", {
+                    return r && 179 === r.errors[0].code ? (t(e, "protected", {
                         tooltip: TD.i("You cannot favorite this protected Tweet"),
                         disabled: !0
-                    }) : void TD.controller.progressIndicator.addMessage(TD.i("Cannot retrieve favorite status"))
+                    }), void 0) : (TD.controller.progressIndicator.addMessage(TD.i("Cannot retrieve favorite status")), void 0)
                 }
             }
 
@@ -6917,9 +7362,19 @@ function(t, e) {
     }
     var e = /withModalable/;
     return t
-}), define("ui/with_dialog_manager", ["flight/lib/compose", "ui/embed_tweet", "ui/keyboard_shortcut_list", "ui/twitter_profile", "ui/report_message_options", "ui/report_tweet_options", "ui/account_shared_warning", "ui/follow_from_options", "ui/favorite_from_options", "ui/modal/with_show_modal"], function(t, e, i, s, n, o, r, a, c, h) {
+}), define("ui/with_dialog_manager", ["require", "flight/lib/compose", "ui/embed_tweet", "ui/keyboard_shortcut_list", "ui/twitter_profile", "ui/report_message_options", "ui/report_tweet_options", "ui/account_shared_warning", "ui/follow_from_options", "ui/favorite_from_options", "ui/modal/with_show_modal"], function(t) {
+    var e = t("flight/lib/compose"),
+        i = t("ui/embed_tweet"),
+        s = t("ui/keyboard_shortcut_list"),
+        n = t("ui/twitter_profile"),
+        o = t("ui/report_message_options"),
+        r = t("ui/report_tweet_options"),
+        a = t("ui/account_shared_warning"),
+        c = t("ui/follow_from_options"),
+        h = t("ui/favorite_from_options"),
+        l = t("ui/modal/with_show_modal");
     return function() {
-        t.mixin(this, [h]), this.showDialogDecorator = function(t) {
+        e.mixin(this, [l]), this.showDialogDecorator = function(t) {
             return function(e, i) {
                 var s = this.select("modal");
                 t.call(this, s, i), s.show()
@@ -6927,7 +7382,7 @@ function(t, e) {
         }, this.showAddColumn = function() {
             TD.ui.openColumn.showOpenColumn()
         }, this.showProfile = function(t, e) {
-            this.showModal(s, {
+            this.showModal(n, {
                 screenName: e.id
             }, {
                 withHeader: !1,
@@ -6937,32 +7392,32 @@ function(t, e) {
                 withClasses: ["prf", "s-tall-fixed", "s-profile", "is-inverted-dark"],
                 withBorder: !1
             })
-        }, this.showEmbedTweet = function(t, i) {
-            e.attachTo(t, {
-                tweet: i.tweet
+        }, this.showEmbedTweet = function(t, e) {
+            i.attachTo(t, {
+                tweet: e.tweet
             })
         }, this.showKeyboardShortcutList = function(t) {
-            i.attachTo(t)
+            s.attachTo(t)
         }, this.showReportTweetOptions = function(t, e) {
-            e.isMessage ? n.attachTo(t, {
+            e.isMessage ? o.attachTo(t, {
                 account: e.account,
                 twitterUser: e.twitterUser,
                 tweetId: e.tweetId
-            }) : o.attachTo(t, {
+            }) : r.attachTo(t, {
                 account: e.account,
                 twitterUser: e.twitterUser,
                 tweetId: e.tweetId
             })
         }, this.showFollowFromOptions = function(t, e) {
-            a.attachTo(t, {
+            c.attachTo(t, {
                 userToFollow: e.userToFollow
             })
         }, this.showFavoriteFromOptions = function(t, e) {
-            c.attachTo(t, {
+            h.attachTo(t, {
                 tweet: e.tweet
             })
         }, this.showAccountSharedWarning = function(t) {
-            r.attachTo(t)
+            a.attachTo(t)
         }, this.showImportColumn = function(t, e) {
             var i;
             try {
@@ -6971,8 +7426,15 @@ function(t, e) {
                 console.warn("Column state deserialization failed:", s)
             }
             i && TD.ui.openColumn.showImportSharedColumn(i)
+        }, this.showGlobalSettings = function() {
+            new TD.components.GlobalSettings
+        }, this.showAccountSettings = function() {
+            if (!TD.config.account_settings_drawer) {
+                var t = new TD.components.GlobalSettings;
+                t.switchTab("accounts")
+            }
         }, this.after("initialize", function() {
-            this.on("uiShowProfile", this.showProfile), this.on("uiShowImportColumnDialog", this.showImportColumn), this.on("uiShowAddColumn", this.showAddColumn), this.on("uiShowEmbedTweet", this.showDialogDecorator(this.showEmbedTweet)), this.on("uiShowKeyboardShortcutList", this.showDialogDecorator(this.showKeyboardShortcutList)), this.on("uiShowReportTweetOptions", this.showDialogDecorator(this.showReportTweetOptions)), this.on("uiShowAccountSharedWarning", this.showDialogDecorator(this.showAccountSharedWarning)), this.on("uiShowFollowFromOptions", this.showDialogDecorator(this.showFollowFromOptions)), this.on("uiShowFavoriteFromOptions", this.showDialogDecorator(this.showFavoriteFromOptions))
+            this.on(document, "uiShowProfile", this.showProfile), this.on(document, "uiShowImportColumnDialog", this.showImportColumn), this.on(document, "uiShowAddColumn", this.showAddColumn), this.on(document, "uiShowGlobalSettings", this.showGlobalSettings), this.on(document, "uiShowAccountSettings", this.showAccountSettings), this.on(document, "uiShowEmbedTweet", this.showDialogDecorator(this.showEmbedTweet)), this.on(document, "uiShowKeyboardShortcutList", this.showDialogDecorator(this.showKeyboardShortcutList)), this.on(document, "uiShowReportTweetOptions", this.showDialogDecorator(this.showReportTweetOptions)), this.on(document, "uiShowAccountSharedWarning", this.showDialogDecorator(this.showAccountSharedWarning)), this.on(document, "uiShowFollowFromOptions", this.showDialogDecorator(this.showFollowFromOptions)), this.on(document, "uiShowFavoriteFromOptions", this.showDialogDecorator(this.showFavoriteFromOptions))
         })
     }
 }), define("ui/message_banner/with_access_denied_message_banner", [], function() {
@@ -6992,9 +7454,10 @@ function(t, e) {
                     action: "trigger-event",
                     label: TD.i("Reauthorize account"),
                     event: {
-                        type: "uiReauthorizeTwitterAccount",
+                        type: "uiAccountAction",
                         data: {
-                            account: t.account
+                            action: "reauthorize",
+                            accountKey: t.account.getKey()
                         }
                     }
                 }, {
@@ -7003,9 +7466,10 @@ function(t, e) {
                     label: TD.i("It's fine "),
                     "class": "btn-alt",
                     event: {
-                        type: "uiRemoveTwitterAccount",
+                        type: "uiAccountAction",
                         data: {
-                            key: t.account.getKey()
+                            action: "remove",
+                            accountKey: t.account.getKey()
                         }
                     }
                 }]
@@ -7148,29 +7612,29 @@ function(t, e) {
             if (t) {
                 if (e = this.validateFiles(t), !e.success) switch (e.error) {
                     case this.attr.errors.TOO_MANY_FILES_ERROR:
-                        return void TD.controller.progressIndicator.addMessage(TD.i("Only one file can be attached to a tweet."));
+                        return TD.controller.progressIndicator.addMessage(TD.i("Only one file can be attached to a tweet.")), void 0;
                     case this.attr.errors.MAX_FILES_ALREADY_ADDED_ERROR:
-                        return void TD.controller.progressIndicator.addMessage(TD.i("You have already attached an image."));
+                        return TD.controller.progressIndicator.addMessage(TD.i("You have already attached an image.")), void 0;
                     case this.attr.errors.INCORRECT_FILETYPE_ERROR:
-                        return void TD.controller.progressIndicator.addMessage(TD.i("You did not select an image."));
+                        return TD.controller.progressIndicator.addMessage(TD.i("You did not select an image.")), void 0;
                     case this.attr.errors.INVALID_FILESIZE_ERROR:
-                        return void TD.controller.progressIndicator.addMessage(TD.i("The file you selected is greater than the 3MB limit."))
+                        return TD.controller.progressIndicator.addMessage(TD.i("The file you selected is greater than the 3MB limit.")), void 0
                 }
                 this.trigger("uiFilesAdded", {
                     files: t
                 }), this.files = _.zip(this.files, t)
             }
         }, this.handleDragEnterEvent = function(t) {
-            if (this.currentDragElement) return void(this.currentDragElement = t.target);
+            if (this.currentDragElement) return this.currentDragElement = t.target, void 0;
             if (this.currentDragElement = t.target, this.state = this.attr.states.DRAG_OK, t.originalEvent.dataTransfer.items) {
                 t.preventDefault();
                 var e, i, s = t.originalEvent.dataTransfer.items,
                     n = this.validateFileCount(s.length);
                 if (n.success) {
                     for (var o = 0; o < s.length; o++)
-                        if (e = s[o], "file" === e.kind && (i = this.validateFile(e), !i.success)) return this.state = this.attr.states.DRAG_ERROR, void this.trigger("uiShowDropMessage", {
+                        if (e = s[o], "file" === e.kind && (i = this.validateFile(e), !i.success)) return this.state = this.attr.states.DRAG_ERROR, this.trigger("uiShowDropMessage", {
                             errorCondition: i.error
-                        });
+                        }), void 0;
                     this.trigger("uiShowDropMessage")
                 } else this.state = this.attr.states.DRAG_ERROR, this.trigger("uiShowDropMessage", {
                     errorCondition: n.error
@@ -7205,7 +7669,7 @@ function(t, e) {
         })
     };
     return t(e)
-}), define("ui/login/two_factor", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_modalable", "ui/login/with_xauth_errors", "ui/with_spinner_button"], function(t) {
+}), define("ui/login/two_factor", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_modalable", "ui/with_api_errors", "ui/with_spinner_button"], function(t) {
     function e() {
         this.defaultAttrs({
             withCode: !1,
@@ -7243,14 +7707,14 @@ function(t, e) {
     var i = t("flight/lib/component"),
         s = t("ui/with_template"),
         n = t("ui/modal/with_modalable"),
-        o = t("ui/login/with_xauth_errors"),
+        o = t("ui/with_api_errors"),
         r = t("ui/with_spinner_button");
     return i(e, s, n, o, r)
-}), define("ui/login/with_login_form", ["require", "flight/lib/compose", "ui/with_spinner_button", "util/with_teardown", "ui/login/with_xauth_errors", "ui/modal/with_show_modal", "ui/login/two_factor"], function(t) {
+}), define("ui/login/with_login_form", ["require", "flight/lib/compose", "ui/with_spinner_button", "util/with_teardown", "ui/with_api_errors", "ui/modal/with_show_modal", "ui/login/two_factor"], function(t) {
     var e = t("flight/lib/compose"),
         i = t("ui/with_spinner_button"),
         s = t("util/with_teardown"),
-        n = t("ui/login/with_xauth_errors"),
+        n = t("ui/with_api_errors"),
         o = t("ui/modal/with_show_modal"),
         r = t("ui/login/two_factor");
     return function() {
@@ -7298,7 +7762,9 @@ function(t, e) {
         }), this.handleLoginAuthSuccess = function(t, e) {
             this.trigger("uiLoginAuthComplete", e)
         }, this.setupLoginForm = function() {
-            this.select("staySignedInSelector").prop("checked", this.attr.staySignedIn);
+            this.select("staySignedInSelector").prop("checked", this.attr.staySignedIn), setTimeout(function() {
+                this.select("usernameSelector").focus()
+            }.bind(this), 0);
             var t = !1;
             this.attr.loginFormDisabled && (t = !0), this.loginFormToggleFormDisabled(t), this.attr.errorMsg && this.loginFormShowErrorMessage(this.attr.errorMsg)
         }, this.loginFormHandleToggleLoginType = function(t) {
@@ -7315,7 +7781,7 @@ function(t, e) {
             this.select("errorSelector").addClass("is-hidden"), this.select("successSelector").addClass("is-hidden")
         }, this.loginFormHandleLoginError = function(t, e) {
             var i;
-            i = e && e.isXAuth ? this.getXAuthErrorMessage(e.code) : TD.i("We could not log you in with this username and password."), this.loginFormShowErrorMessage(i)
+            i = e && e.isXAuth ? this.getXAuthErrorMessage(e.code) : TD.i("We could not sign you in with this username and password."), this.loginFormShowErrorMessage(i)
         }, this.loginFormHandleLoginServerError = function() {
             this.loginFormShowErrorMessage(this.getXAuthErrorMessage())
         }, this.handleLogin2FATimeout = function() {
@@ -7475,6 +7941,7 @@ function(t, e) {
         this.defaultAttrs({
             template: "login/migrate_tweetdeck_account_preview",
             errorTemplate: "login/migrate_tweetdeck_account_preview_error",
+            badPasswordTemplate: "login/migrate_tweetdeck_account_preview_bad_password",
             minWaitTime: 1e3,
             withNumericData: !0
         }), this.after("initialize", function() {
@@ -7494,7 +7961,6 @@ function(t, e) {
             o(this.attr.minWaitTime, this.needsPreviewTimestamp, this.renderPreviewError.bind(this, e))
         }, this.renderPreview = function() {
             this.trigger("uiMigratePreviewSuccess"), this.render(this.attr.template, {
-                tweedeckAccountEmail: this.attr.migrate.email,
                 withNumericData: this.attr.withNumericData,
                 accounts: this.attr.preview.accounts,
                 numAccounts: this.attr.preview.accounts.length,
@@ -7502,9 +7968,8 @@ function(t, e) {
                 numScheduled: this.attr.preview.numScheduled
             })
         }, this.renderPreviewError = function(t) {
-            this.trigger("uiMigratePreviewError", t), this.render(this.attr.errorTemplate, {
-                tweedeckAccountEmail: this.attr.migrate.email
-            })
+            var e;
+            this.trigger("uiMigratePreviewError", t), e = 401 === t.req.status ? this.attr.badPasswordTemplate : this.attr.errorTemplate, this.render(e)
         }
     }
     var i = t("flight/lib/component"),
@@ -7536,15 +8001,15 @@ function(t, e) {
                     dedupeSignIn: !0
                 }),
                 r = o.newProfiles.length > 0,
-                a = !1,
-                c = r || a;
+                a = o.existingProfiles.length > 0,
+                c = "single" === this.attr.migrate.accountType;
             this.render(this.attr.template, {
                 twitterProfile: o.twitterProfile,
                 newProfiles: o.newProfiles,
-                showNewProfiles: o.newProfiles.length > 0,
+                showNewProfiles: r,
                 existingProfiles: o.existingProfiles,
                 showExistingProfiles: a,
-                showImportData: c
+                isSingleUser: c
             })
         }, this.handleMigrateTweetDeckAccountPreviewError = function(t, e) {
             this.trigger("uiMigratePreviewError", e), this.render(this.attr.errorTemplate)
@@ -7601,6 +8066,7 @@ function(t, e) {
             migrateTweetdeckAccountPreviewContentSelector: ".js-migrate-tweetdeck-account-preview-content",
             migrateTweetdeckAccountWarningSelector: ".js-migrate-tweetdeck-account-warning",
             migrateAccountLoginFormsCancelSelector: ".js-migrate-account-login-forms-cancel",
+            migrateAccountLoginFormsRestartSelector: ".js-migrate-account-login-forms-restart",
             migrateAccountStepClassPrefix: "migrate-account-login-step-",
             migrateArrowSelector: ".migrate-account-login-arrow",
             migrateCancelWrapperSelector: ".migrate-account-login-forms-cancel",
@@ -7626,7 +8092,8 @@ function(t, e) {
                 migrateTweetdeckAccountPreviewSelector: this.handleMigratePreviewError,
                 migrateTweetdeckAccountWarningSelector: this.handleMigrateWarningPreviewError
             }), this.on("click", {
-                migrateAccountLoginFormsCancelSelector: this.migrateLoginFormsCancelClick
+                migrateAccountLoginFormsCancelSelector: this.migrateLoginFormsCancelClick,
+                migrateAccountLoginFormsRestartSelector: this.migrateLoginFormsRestartClick
             }), this.render(this.attr.layoutTemplate, {
                 resolution: TD.util.isRetina() ? "2x" : "1x",
                 withToggleLoginType: !1,
@@ -7643,7 +8110,9 @@ function(t, e) {
                 twitter: {
                     twitterLoginLegend: TD.i("Choose a Twitter username to sign in with from now on"),
                     twitterLoginLegendClasses: "txt-bold padding-vl",
-                    twitterLoginWarning: TD.i("We strongly recommend choosing a Twitter account only you know the password for."),
+                    withWarning: !0,
+                    withMultiUserWarning: "multiple" === this.attr.migrate.accountType,
+                    withSingleUserWarning: "single" === this.attr.migrate.accountType,
                     loginFormButtonContent: TD.i("Next"),
                     loginFormButtonIcon: "icon-arrow-r"
                 }
@@ -7686,6 +8155,10 @@ function(t, e) {
             TD.storage.store.setCurrentAuthType("tweetdeck"), this.scribeAction("cancel"), this.trigger("uiMigrateCancel", {
                 clearMigrateData: !0
             })
+        }, this.migrateLoginFormsRestartClick = function() {
+            this.trigger("uiMigrateTweetDeckData", {
+                passhash: null
+            }), this.scribeAction("restart"), window.location.reload()
         }, this.setStep = function(t) {
             this.currentStep && this.$node.removeClass(this.attr.migrateAccountStepClassPrefix + this.currentStep), this.currentStep = t, this.$node.addClass(this.attr.migrateAccountStepClassPrefix + this.currentStep), this.scribeAction("impression")
         }, this.scribeAction = function(t, e) {
@@ -7820,8 +8293,8 @@ function(t, e) {
         }
     }
     return s
-}), define("ui/column_navigation", ["flight/lib/component", "ui/drag_drop/with_drag_drop", "ui/with_template", "ui/with_nav_flyover"], function(t, e, i, s) {
-    function n() {
+}), define("ui/column_navigation", ["flight/lib/component", "ui/drag_drop/with_drag_drop", "ui/with_template", "ui/with_transitions", "ui/with_nav_flyover"], function(t, e, i, s, n) {
+    function o() {
         var t = !1,
             e = null,
             i = null,
@@ -7835,13 +8308,15 @@ function(t, e) {
             listItemSelector: ".js-column-nav-menu-item",
             dragHandleSelector: ".js-drag-handle",
             columnNavScrollerSelector: ".js-column-nav-scroller",
+            animateInClass: "anim-rotate-in",
+            animateOutClass: "anim-rotate-out",
+            isNewClass: "is-new",
             touchEvents: "touchstart touchmove touchend touchcancel",
             listOrientation: "vertical",
-            isNewClass: "is-new",
             initScrollbarsDelay: 300,
             showScrollbarsThrottle: 100
         }), this.after("initialize", function() {
-            this.renderColumnNavigation(), this.on(document, "dataColumnsLoaded", this.handleDataColumnsLoaded), this.on(document, "uiMainWindowResized", this.handleUiMainWindowResized), $.subscribe("/storage/client/column_order_changed", this.handleColumnsChanged.bind(this)), $.subscribe("/storage/client/change", this.handleColumnsChanged.bind(this)), this.on(document, "uiReadStateChange", this.handleReadStateChange), this.on(document, "dataSettings", this.handleDataSettings), this.on(document, "uiColumnTitleRefreshed", this.handleColumnTitleRefreshed), this.trigger("uiNeedsSettings"), this.$columnNavScroller = $(".js-column-nav-scroller"), TD.util.isTouchDevice() && this.on(this.$columnNavScroller, this.attr.touchEvents, this.handleTouch), this.throttledShowScrollbars = _.throttle(this.showScrollbars.bind(this), this.attr.showScrollbarsThrottle), this.debouncedInitScrollbars = _.debounce(this.initScrollbars.bind(this), this.attr.initScrollbarsDelay), this.debouncedInitScrollbars(), this.setupDragDrop({
+            this.renderColumnNavigation(), this.on(document, "dataColumnsLoaded", this.handleDataColumnsLoaded), this.on(document, "uiMainWindowResized", this.handleUiMainWindowResized), $.subscribe("/storage/client/column_order_changed", this.handleColumnsChanged.bind(this)), $.subscribe("/storage/client/change", this.handleColumnsChanged.bind(this)), this.on(document, "uiReadStateChange", this.handleReadStateChange), this.on(document, "uiMessageUnreadCount", this.handleMessageCount), this.on(document, "dataSettings", this.handleDataSettings), this.on(document, "uiColumnTitleRefreshed", this.handleColumnTitleRefreshed), this.trigger("uiNeedsSettings"), this.$columnNavScroller = $(".js-column-nav-scroller"), TD.util.isTouchDevice() && this.on(this.$columnNavScroller, this.attr.touchEvents, this.handleTouch), this.throttledShowScrollbars = _.throttle(this.showScrollbars.bind(this), this.attr.showScrollbarsThrottle), this.debouncedInitScrollbars = _.debounce(this.initScrollbars.bind(this), this.attr.initScrollbarsDelay), this.debouncedInitScrollbars(), this.setupDragDrop({
                 type: "tweet",
                 indicateDrop: !1,
                 dragover: this.delegateDragOver,
@@ -7873,15 +8348,17 @@ function(t, e) {
             this.select("listItemSelector").each(function() {
                 s.push($(this).attr("data-column"))
             }), t = s.length !== i.length, e = _.map(i, function(e, i) {
-                var n, o, r, a, c = e.model.getKey(),
-                    h = TD.ui.columns.getColumnElementByKey(c);
-                return s[i] !== c && (t = !0), e.isOwnCustomTimeline() && (n = e.getCustomTimelineFeed(), o = n && n.getMetadata(), r = o && o.id, a = n && n.getAccountKey()), {
-                    key: c,
+                var n, o, r, a, c, h = e.model.getKey(),
+                    l = TD.ui.columns.getColumnElementByKey(h);
+                return s[i] !== h && (t = !0), e.isOwnCustomTimeline() && (n = e.getCustomTimelineFeed(), o = n && n.getMetadata(), r = o && o.id, a = n && n.getAccountKey()), e.isMessageColumn() && (c = e.unreadMessageCount()), {
+                    key: h,
                     title: e.getTitleHTML(),
                     iconclass: e.getIconClass(),
-                    isNew: h.hasClass(this.attr.isNewClass),
+                    isNew: l.hasClass(this.attr.isNewClass),
                     customTimelineId: r,
-                    customTimelineAccount: a
+                    customTimelineAccount: a,
+                    isMessageColumn: e.isMessageColumn(),
+                    unreadCount: "0" === c ? null : c
                 }
             }.bind(this)), t && (this.render(this.attr.templateName, {
                 columns: e
@@ -7912,7 +8389,9 @@ function(t, e) {
         }, this.handleDrop = function(t) {
             var e = [],
                 i = $(t.target).attr("data-column");
-            TD.ui.columns.setMovingColumn(i), this.select("listItemSelector").each(function() {
+            this.trigger("uiColumnMoving", {
+                columnKey: i
+            }), this.select("listItemSelector").each(function() {
                 e.push($(this).attr("data-column"))
             }), TD.storage.clientController.client.setColumnOrder(e), TD.controller.stats.navbarReorderColumns()
         }, this.handleDrag = function(t) {
@@ -7926,9 +8405,21 @@ function(t, e) {
                 selector: this.attr.listItemSelector,
                 $boundary: this.$node
             }).on("drop.dragdroplist", this.handleDrop.bind(this)).on("drag.draggable", this.handleDrag.bind(this)).on("dropped.dragdroplist", this.handleDropped.bind(this))
+        }, this.getColumnItem = function(t) {
+            return this.$node.find(".js-column-nav-menu-item[data-column=" + t + "]")
         }, this.handleReadStateChange = function(t, e) {
-            var i = this.$node.find(".js-column-nav-menu-item[data-column=" + e.columnKey + "]");
-            i.toggleClass(this.attr.isNewClass, !e.read)
+            var i = this.getColumnItem(e.columnKey),
+                s = i.find(".js-unread-count");
+            0 === s.length && i.toggleClass(this.attr.isNewClass, !e.read)
+        }, this.handleMessageCount = function(t, e) {
+            var i = this.getColumnItem(e.columnKey),
+                s = i.find(".js-unread-count"),
+                n = s.text() || "0",
+                o = "0" === n && "0" !== e.count,
+                r = "0" !== n && "0" === e.count;
+            s.text(e.count), o && (this.stopAnimation(s, this.attr.animateOutClass), s.addClass("is-visible"), this.addAnimateClass(s, this.attr.animateInClass)), r && (this.stopAnimation(s, this.attr.animateInClass), this.addAnimateClass(s, this.attr.animateOutClass, function() {
+                s.removeClass("is-visible")
+            }))
         }, this.showFlyoverFor = function(t) {
             var e = $(t);
             if (this.isNavbarCollapsed && !TD.util.isTouchDevice()) {
@@ -7997,7 +8488,56 @@ function(t, e) {
             return Math.sqrt(i * i + s * s)
         }
     }
-    return t(n, e, i, s)
+    return t(o, e, i, s, n)
+}), define("ui/columns/column_order", ["require", "flight/lib/component", "ui/with_column_selectors"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            isMovingClass: "is-moving",
+            isMovingSelector: ".is-moving"
+        }), this.after("initialize", function() {
+            this.on(document, "uiColumnMoving", this.handleMovingColumn), this.on(document, "dataColumnOrder", this.handleColumnOrder), this.$columnsContainer = this.select("columnsContainerSelector")
+        }), this.handleMovingColumn = function(t, e) {
+            this.getColumnElementByKey(e.columnKey).addClass(this.attr.isMovingClass)
+        }, this.isColumnOffScreen = function(t) {
+            var e = t.position().left,
+                i = this.getOriginalWidth(t);
+            return 0 > e + i || e + i > this.$node.width()
+        }, this.storeOriginalWidth = function(t) {
+            var e = t.data("originalWidth");
+            void 0 === e && (e = parseInt(t.css("width"), 10)), t.data("originalWidth", e)
+        }, this.getOriginalWidth = function(t) {
+            return t.data("originalWidth") || parseInt(t.css("width"), 10)
+        }, this.moveColumnInstantly = function(t, e, i, s) {
+            i.length > 0 && i.attr("data-column") !== s.newOrder[s.newIndex + 1] && (s.detached[i.attr("data-column")] = i.detach()), t ? e.insertAfter(t) : this.$columnsContainer.prepend(e)
+        }, this.moveColumnToNewIndex = function(t, e) {
+            var i, s, n = t.newOrder[t.newIndex],
+                o = t.detached[n] || this.getColumnElementByKey(n),
+                r = o.index(),
+                a = function() {
+                    o.removeClass(this.attr.isMovingClass), e = o, delete t.detached[n]
+                }.bind(this);
+            t.newOrder.length >= t.newIndex ? (i = this.getColumnElementByKey(t.newOrder[t.newIndex + 1]), s = i.index()) : (i = !1, s = -1), t.newIndex < t.newOrder.length && r !== s && (o.hasClass(this.attr.isMovingClass) ? (this.storeOriginalWidth(o), this.moveColumnInstantly(e, o, i, t), this.isColumnOffScreen(o) ? (o.one("uiColumnScrolled", function() {
+                a(), t.newIndex += 1, this.moveColumnToNewIndex(t, e)
+            }.bind(this)), o.trigger("uiColumnsScrollColumnToCenter", {
+                columnKey: o.attr("data-column")
+            })) : (TD.ui.columns.focusColumn(o.attr("data-column"), TD.ui.columns.COLUMN_GLOW_DURATION), a(), t.newIndex += 1, this.moveColumnToNewIndex(t, e))) : (e = o, t.newIndex += 1, this.moveColumnToNewIndex(t, e)))
+        }, this.handleColumnOrder = function(t, e) {
+            var i = {}, s = null,
+                n = this.select("columnSelector").filter(this.attr.isMovingSelector);
+            return n.length > 0 ? (this.moveColumnToNewIndex({
+                newIndex: 0,
+                newOrder: e.columnOrder,
+                detached: i
+            }), void 0) : (e.columnOrder.forEach(function(t, n) {
+                var o = i[t] || this.getColumnElementByKey(t),
+                    r = this.select("columnSelector").eq(n);
+                r[0] !== o[0] && (e.columnOrder.length > n + 1 && r.length > 0 && r.attr("data-column") !== e.columnOrder[n + 1] && (i[r.attr("data-column")] = r.detach()), 0 === n ? o.prependTo(this.$columnsContainer) : o.insertAfter(s), delete i[t]), s = o
+            }, this), void 0)
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_column_selectors");
+    return i(e, s)
 }), define("ui/with_popover", ["flight/lib/compose", "ui/with_template"], function(t, e) {
     function i() {
         t.mixin(this, [e]), this.defaultAttrs({
@@ -8098,7 +8638,7 @@ function(t, e) {
         }, this.handlePopoverHiding = function() {
             this.defaultHeight = "auto", this.$searchResultsContainer.addClass("is-hidden"), this.$typeaheadContainer.removeClass("is-hidden")
         }, this.handlePopoverHidden = function() {
-            this.$input.removeClass("is-focused")
+            this.$input.removeClass("is-focused"), this.trigger("uiSearchInPopoverHidden")
         }, this.handleSearchResultsColumnAdded = function() {
             this.hidePopover()
         }, this.handleSearchInputFocus = function(t, e) {
@@ -8173,7 +8713,7 @@ function(t, e) {
         }), this.renderUsers = function(t, e) {
             this.$usersList.find(this.attr.usersItemSelector).remove();
             var i = e.suggestions.users || [];
-            if (!i.length) return void this.clearUsers();
+            if (!i.length) return this.clearUsers(), void 0;
             var s, n = [];
             i.forEach(function(t) {
                 n.push({
@@ -8227,7 +8767,7 @@ function(t, e) {
             var i = e.datasources && e.datasources.some(function(t) {
                 return "recentSearches" === t
             });
-            if (!i) return this.$recentSearchesList.removeClass("has-results").addClass("is-hidden").empty(), void this.$clearRecentSearches.addClass("is-hidden").removeClass("is-invisible");
+            if (!i) return this.$recentSearchesList.removeClass("has-results").addClass("is-hidden").empty(), this.$clearRecentSearches.addClass("is-hidden").removeClass("is-invisible"), void 0;
             var s, n = i && 1 === e.datasources.length,
                 o = e.suggestions && e.suggestions.recentSearches && e.suggestions.recentSearches.length,
                 r = o || n,
@@ -8260,7 +8800,7 @@ function(t, e) {
         }), this.renderTopics = function(t, e) {
             this.$topicsList.empty();
             var i = e.suggestions.topics || [];
-            if (!i.length) return void this.clearTopics();
+            if (!i.length) return this.clearTopics(), void 0;
             var s = i.map(function(t) {
                 return {
                     topic: t.topic,
@@ -8290,7 +8830,7 @@ function(t, e) {
             var i = e.datasources && e.datasources.some(function(t) {
                 return "lists" === t
             });
-            if (!i) return void this.$listsList.removeClass("has-results").addClass("is-hidden").empty();
+            if (!i) return this.$listsList.removeClass("has-results").addClass("is-hidden").empty(), void 0;
             var s, n = e.suggestions && e.suggestions.lists && e.suggestions.lists.length;
             if (n) {
                 var o = [];
@@ -8393,13 +8933,13 @@ function(t, e) {
                 if (!s.length) {
                     s = this.select("itemsSelector").first();
                     var n = s.data("search-query") !== this.query;
-                    if (!n) return void("uiTypeaheadInputTab" === t.type && (this.hasFocus = !1))
+                    if (!n) return "uiTypeaheadInputTab" === t.type && (this.hasFocus = !1), void 0
                 }
                 var o = s.data("search-type"),
                     r = this.attr.queryTypes.some(function(t) {
                         return t === o
                     });
-                if (!r) return void("uiTypeaheadInputTab" === t.type && (this.hasFocus = !1));
+                if (!r) return "uiTypeaheadInputTab" === t.type && (this.hasFocus = !1), void 0;
                 var a = s.data("search-query"),
                     c = this.select("itemsSelector"),
                     h = c.index(s);
@@ -8442,22 +8982,28 @@ function(t, e) {
         })
     };
     return t(i, e)
-}), define("ui/user_search_results", ["flight/lib/component", "ui/with_template", "ui/with_user_menu"], function(t, e, i) {
-    var s = function() {
-        this.query = null, this.handleSearch = function(t, e) {
-            this.query = e.query, this.hideUserMenu(), this.$node.empty(), this.trigger(document, "uiNeedsUserSearch", {
+}), define("ui/user_search_results", ["require", "flight/lib/component", "ui/with_template"], function(t) {
+    function e() {
+        this.after("initialize", function() {
+            this.query = null, this.on(document, "uiSearch", this.handleSearch), this.on(document, "dataUserSearch", this.handleResults), this.on("uiUserResultsDestroy", this.teardown)
+        }), this.handleSearch = function(t, e) {
+            this.query = e.query, this.$node.empty(), this.trigger(document, "uiNeedsUserSearch", {
                 query: this.query
             })
         }, this.handleResults = function(t, e) {
-            e.request.query === this.query && (this.users = e.result, 0 === this.users.length ? this.render("search_no_users_placeholder") : this.render("menus/user_results", {
-                users: this.users,
-                withUserMenu: !0
-            }))
-        }, this.after("initialize", function() {
-            this.on(document, "uiSearch", this.handleSearch), this.on(document, "dataUserSearch", this.handleResults), this.on("uiUserResultsDestroy", this.teardown)
-        })
-    };
-    return t(s, e, i)
+            if (e.request.query === this.query) {
+                var i = e.result;
+                0 === i.length ? this.render("search_no_users_placeholder") : this.render("menus/user_results", {
+                    users: i,
+                    withUserMenu: !0,
+                    userMenuPositon: "pos-r"
+                })
+            }
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_template");
+    return i(e, s)
 }), define("ui/with_fixed_header_and_footer", ["flight/lib/compose", "ui/with_template"], function(t, e) {
     var i = function() {
         t.mixin(this, [e]), this.defaultAttrs({
@@ -8563,8 +9109,8 @@ function(t, e) {
         })
     }
     return t(l, s, n, r, o, c, h)
-}), define("ui/search/search_router", ["flight/lib/component"], function(t) {
-    var e = function() {
+}), define("ui/search/search_router", ["require", "flight/lib/component"], function(t) {
+    function e() {
         this.defaultAttrs({
             appSearchSelector: ".js-search",
             appSearchInputSelector: ".js-search-form .js-app-search-input",
@@ -8573,7 +9119,7 @@ function(t, e) {
         }), this.after("initialize", function() {
             TD.util.isTouchDevice() && TD.decider.get(TD.decider.TOUCHDECK_SEARCH) ? this.select("appSearchSelector").addClass(this.attr.isTouchSearchClass) : this.select("appSearchSelector").removeClass(this.attr.isTouchSearchClass), this.on(document, "uiPerformSearch", this.handlePerformSearch), this.on(document, "uiAppSearchFocus uiShowSearchButtonClick", this.focusSearchInput), this.on(document, "dataSettings", this.handleDataSettings), this.trigger("uiNeedsSettings")
         }), this.handleDataSettings = function(t, e) {
-            this.$input = this.select("condensed" === e.navbarWidth ? "searchPopoverInputSelector" : "appSearchInputSelector")
+            this.$input = "condensed" === e.navbarWidth ? this.select("searchPopoverInputSelector") : this.select("appSearchInputSelector")
         }, this.focusSearchInput = function() {
             this.$input.triggerHandler("focus"), this.$input.is(":focus") || this.$input.focus()
         }, this.handlePerformSearch = function(t, e) {
@@ -8581,27 +9127,47 @@ function(t, e) {
                 this.trigger(this.$input, "uiAppSearchSubmit", e)
             }.bind(this))
         }
-    };
-    return t(e)
-}), define("ui/with_compose_button", [], function() {
+    }
+    var i = t("flight/lib/component");
+    return i(e)
+}), define("ui/with_drawer_tabs", [], function() {
     return function() {
         this.defaultAttrs({
-            showComposeButtonSelector: ".js-show-compose",
-            hideComposeButtonSelector: ".js-hide-compose"
+            showDrawerButtonSelector: ".js-show-drawer",
+            hideDrawerButtonSelector: ".js-hide-drawer"
         }), this.after("initialize", function() {
             this.on("click", {
-                showComposeButtonSelector: this.handleShowCompose,
-                hideComposeButtonSelector: this.handleHideCompose
-            }), this.on(document, "uiToggleDockedCompose", this.handleToggleDockedCompose)
-        }), this.handleShowCompose = function() {
-            this.trigger("uiComposeTweet"), TD.controller.stats.navbarComposeClick()
-        }, this.handleHideCompose = function() {
-            this.trigger("uiComposeClose")
-        }, this.handleToggleDockedCompose = function(t, e) {
-            e.opening ? (this.select("showComposeButtonSelector").addClass("is-hidden"), this.select("hideComposeButtonSelector").removeClass("is-hidden")) : (this.select("showComposeButtonSelector").removeClass("is-hidden"), this.select("hideComposeButtonSelector").addClass("is-hidden"))
+                showDrawerButtonSelector: this.handleShowDrawerClick,
+                hideDrawerButtonSelector: this.handleHideDrawerClick
+            }), this.on(document, "uiDrawerActive", this.handleDrawerActive)
+        }), this.handleShowDrawerClick = function(t, e) {
+            var i = $(e.el).attr("data-drawer");
+            switch (i) {
+                case "compose":
+                    this.trigger("uiComposeTweet"), TD.controller.stats.navbarComposeClick();
+                    break;
+                case "accountSettings":
+                    this.trigger("uiShowAccountSettings")
+            }
+        }, this.handleHideDrawerClick = function(t, e) {
+            var i = $(e.el).attr("data-drawer");
+            switch (i) {
+                case "compose":
+                    this.trigger("uiComposeClose"), TD.controller.stats.navbarComposeClick();
+                    break;
+                default:
+                    this.trigger("uiDrawerClose")
+            }
+        }, this.handleDrawerActive = function(t, e) {
+            if (this.select("hideDrawerButtonSelector").addClass("is-hidden"), this.select("showDrawerButtonSelector").removeClass("is-hidden"), e.activeDrawer) {
+                var i = function() {
+                    return $(this).attr("data-drawer") === e.activeDrawer
+                };
+                this.select("showDrawerButtonSelector").filter(i).addClass("is-hidden"), this.select("hideDrawerButtonSelector").filter(i).removeClass("is-hidden")
+            }
         }
     }
-}), define("ui/app_header", ["flight/lib/component", "ui/with_compose_button", "ui/with_nav_flyover", "ui/with_dropdown"], function(t, e, i, s) {
+}), define("ui/app_header", ["flight/lib/component", "ui/with_drawer_tabs", "ui/with_nav_flyover", "ui/with_dropdown"], function(t, e, i, s) {
     function n() {
         this.defaultAttrs({
             headerActionSelector: ".js-header-action",
@@ -8613,6 +9179,9 @@ function(t, e) {
                 i = e.attr("data-action");
             if (e.length) {
                 switch ("url" !== i && t.preventDefault(), i) {
+                    case "account-settings":
+                        this.trigger("uiShowAccountSettings");
+                        break;
                     case "add-column":
                         TD.ui.openColumn.showOpenColumn(), TD.controller.stats.navbarAddColumnClick();
                         break;
@@ -8635,7 +9204,7 @@ function(t, e) {
                         TD.controller.init.signOut();
                         break;
                     case "globalSettings":
-                        new TD.components.GlobalSettings;
+                        $(document).trigger("uiShowGlobalSettings");
                         break;
                     case "do_debug":
                         TD.sync.ui.dispatch_ui_event(e.attr("data-type"));
@@ -8707,7 +9276,7 @@ function(t, e) {
             navbarWidthChangeDuration: 250,
             maxColumnsForAnimation: 5
         });
-        var t, e, i = !1;
+        var t, e;
         this.setTheme = function(t) {
             var e = $("link");
             _.each(e, function(e) {
@@ -8739,25 +9308,10 @@ function(t, e) {
                     easing: "easeOutQuad"
                 })
             }
-        }, this.handleAnimateCompose = function(t, s) {
-            s.noAnimate && e.css({
-                "transition-duration": "0"
-            }), e.one(TD.ui.main.TRANSITION_END_EVENTS, function() {
-                i && e.css({
-                    "margin-right": 245
-                }), s.noAnimate && e.css({
-                    "transition-duration": "0.2s"
-                }), this.trigger("uiToggleDockedComposeComplete")
-            }.bind(this)), s.opening && !i ? (i = !0, e.css({
-                transform: "translateX(245px)"
-            })) : s.opening || (e.css({
-                transform: "translateX(0)",
-                "margin-right": 0
-            }), i = !1)
         }, this.handleDataSettings = function(t, e) {
             this.setTheme(e.theme), this.setNavbarWidth(e.navbarWidth)
         }, this.after("initialize", function() {
-            t = this.select("jsAppSelector"), e = this.select("jsAppContentSelector"), this.isNavbarWidthSet = !1, this.on(document, "dataSettings", this.handleDataSettings), this.on(document, "uiToggleDockedCompose", this.handleAnimateCompose)
+            t = this.select("jsAppSelector"), e = this.select("jsAppContentSelector"), this.isNavbarWidthSet = !1, this.on(document, "dataSettings", this.handleDataSettings)
         })
     }
     return t(e)
@@ -8781,7 +9335,7 @@ function(t, e) {
             isSelectedClass: "is-selected",
             selectedItemSelector: ".js-account-item.is-selected"
         }), this.after("initialize", function() {
-            this.on(document, "dataAccounts", this.handleAccountsDataForAccountSelector), this.on(document, "dataDefaultAccount", this.handleDefaultAccountForAccountSelector), this.trigger("uiNeedsAccounts"), this.trigger("uiNeedsDefaultAccount")
+            this.on(document, "dataAccounts", this.handleAccountsDataForAccountSelector), this.on(document, "dataDefaultAccount", this.handleDefaultAccountForAccountSelector), this.trigger("uiNeedsAccounts"), this.trigger("uiNeedsDefaultAccount"), this.alwaysSelectOneAccount = !1
         }), this.after("setupDOM", function() {
             this.on("click keypress", {
                 accountItemSelector: this.accountSelectorHandleClick
@@ -8799,7 +9353,7 @@ function(t, e) {
                     return {
                         accountKey: t.accountKey,
                         screenName: t.screenName,
-                        profileImageUrl: t.profileImageUrl,
+                        profileImageURL: t.profileImageURL,
                         isSelected: s
                     }
                 });
@@ -8817,7 +9371,7 @@ function(t, e) {
         }, this.accountSelectorHandleClick = function(t) {
             if (s.eventIsKey(t) && !s.isSpacebar(t)) return !1;
             var e = $(t.target).closest(this.attr.accountItemSelector);
-            t.shiftKey && this.select("accountItemSelector").removeClass(this.attr.isSelectedClass), e.toggleClass(this.attr.isSelectedClass), TD.util.isTouchDevice() && TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) && (this.select("accountItemSelector").tooltip("destroy"), e.tooltip({
+            (t.shiftKey || this.alwaysSelectOneAccount) && this.select("accountItemSelector").removeClass(this.attr.isSelectedClass), e.toggleClass(this.attr.isSelectedClass), TD.util.isTouchDevice() && TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) && (this.select("accountItemSelector").tooltip("destroy"), e.tooltip({
                 trigger: "manual",
                 selector: ".js-show-tip",
                 container: "body",
@@ -8853,7 +9407,8 @@ function(t, e) {
             accountCount: 1,
             messageRecipient: null,
             charCount: 0,
-            tweetType: "tweet"
+            tweetType: "tweet",
+            scheduledDatePassed: !1
         };
         this.defaultAttrs({
             sendButtonSelector: ".js-send-tweet-button",
@@ -8866,14 +9421,19 @@ function(t, e) {
                 message: TD.i("Send message")
             }
         }), this.after("initialize", function() {
-            this.on("uiComposeCharCount", this.sendButtonHandleCharCount), this.on("uiSelectedAccounts", this.handleUiSelectedAccounts), this.on("uiMessageRecipientSet", this.handleMessageRecipientChanged), this.on("uiMessageRecipientUnset", this.handleMessageRecipientChanged), this.attr.buttonErrorMessages = _.defaults({}, this.attr.buttonErrorMessages, {
+            this.on("uiComposeCharCount", this.sendButtonHandleCharCount), this.on("uiSelectedAccounts", this.handleUiSelectedAccounts), this.on("uiMessageRecipientSet", this.handleMessageRecipientChanged), this.on("uiMessageRecipientUnset", this.handleMessageRecipientChanged), this.on("uiScheduledDatePassed", this.handleScheduledDatePassed), this.on("uiComposeScheduleDate", this.handleComposeScheduleDate), this.attr.buttonErrorMessages = _.defaults({}, this.attr.buttonErrorMessages, {
                 tooLong: TD.i("Your Tweet is too long"),
                 noAccount: TD.i("You have to select at least one account to tweet from"),
-                noRecipient: TD.i("You have to select a recipient for your message")
+                noRecipient: TD.i("You have to select a recipient for your message"),
+                scheduledDatePassed: TD.i("Scheduled time has passed")
             })
         }), this.after("setupDOM", function() {
             this.$sendButton = this.select("sendButtonSelector"), this.$sendButton.addClass("is-disabled"), this.$sendButton.on("click keydown", this.sendButtonHandleClick.bind(this)), this.origTitle = this.$sendButton.attr("title"), this.$sendButton.removeAttr("title")
-        }), this.sendButtonShowSending = function() {
+        }), this.handleScheduledDatePassed = function() {
+            t.scheduledDatePassed = !0, this.sendButtonEnabledIfValid()
+        }, this.handleComposeScheduleDate = function() {
+            t.scheduledDatePassed = !1, this.sendButtonEnabledIfValid()
+        }, this.sendButtonShowSending = function() {
             this.sendButtonSending = !0, this.select("composeSuccess").addClass("is-hidden"), this.$sendButton.addClass("text-hidden is-disabled"), this.spinnerButtonEnable(), this.$sendButton.tooltip("hide")
         }, this.sendButtonShowSuccess = function() {
             this.spinnerButtonDisable(), this.$sendButton.addClass("text-hidden is-disabled"), this.select("composeSuccess").removeClass("is-hidden")
@@ -8908,12 +9468,13 @@ function(t, e) {
             (!i.eventIsKey(t) || i.isEnter(t) || i.isSpacebar(t)) && this.trigger("uiComposeSendTweet", {})
         }, this.sendButtonIsEnabled = function() {
             return !this.$sendButton.is(":disabled,.is-disabled")
-        }, this.setButtonErrorTooltip = function() {
-            var e = this.origTitle;
-            0 === t.accountCount ? e = this.attr.buttonErrorMessages.noAccount : this.isOverCharLimit(t.charCount) ? e = this.attr.buttonErrorMessages.tooLong : "message" === t.tweetType && !t.messageRecipient && (e = this.attr.buttonErrorMessages.noRecipient), this.$sendButton.attr("data-original-title", e)
-        }, this.hideButtonErrorTooltip = function() {}, this.sendButtonEnabledIfValid = function() {
-            var e = t.accountCount > 0 && this.isWithinCharLimit(t.charCount) && ("message" !== t.tweetType || t.messageRecipient) && !this.sendButtonSending;
-            this.setButtonErrorTooltip(), this.$sendButton.toggleClass("is-disabled", !e)
+        }, this.getButtonErrorTooltip = function() {
+            var e = null;
+            return 0 === t.accountCount ? e = this.attr.buttonErrorMessages.noAccount : this.isOverCharLimit(t.charCount) ? e = this.attr.buttonErrorMessages.tooLong : "message" !== t.tweetType || t.messageRecipient ? t.scheduledDatePassed && (e = this.attr.buttonErrorMessages.scheduledDatePassed) : e = this.attr.buttonErrorMessages.noRecipient, e
+        }, this.sendButtonEnabledIfValid = function() {
+            var e = this.getButtonErrorTooltip(),
+                i = this.isWithinCharLimit(t.charCount) && !e && !this.sendButtonSending;
+            this.$sendButton.attr("data-original-title", e || this.origTitle), this.$sendButton.toggleClass("is-disabled", !i)
         }, this.sendButtonSetDisabled = function() {
             this.$sendButton.addClass("is-disabled")
         }
@@ -8934,20 +9495,21 @@ function(t, e) {
             i.addCallback(e)
         }
     }
-}), define("ui/compose/with_send_tweet", ["require", "flight/lib/compose", "data/with_bitly", "data/with_client"], function(t) {
+}), define("ui/compose/with_send_tweet", ["require", "flight/lib/compose", "data/with_bitly", "data/with_client", "ui/with_api_errors"], function(t) {
     var e = t("flight/lib/compose"),
         i = t("data/with_bitly"),
-        s = t("data/with_client");
+        s = t("data/with_client"),
+        n = t("ui/with_api_errors");
     return function() {
-        e.mixin(this, [i, s]);
+        e.mixin(this, [i, s, n]);
         var t = [],
-            n = null;
+            o = null;
         this.after("initialize", function() {
             this.on(document, "dataTweetSent", this.handleDataTweetSent), this.on(document, "dataTweetError", this.handleDataTweetError), this.on(document, "dataScheduledTweetsSent", this.handleDataScheduledTweetsSent), this.on(document, "dataScheduledTweetsError", this.handleDataScheduledTweetsError)
         }), this.resetSendTweet = function() {
-            t = [], n = null
+            t = [], o = null
         }, this.sendTweet = function(t) {
-            this.trigger("uiComposeTweetSending"), this.resetSendTweet(), n = t, this.maybeShortenTextLinks(t.text, function(e) {
+            this.trigger("uiComposeTweetSending"), this.resetSendTweet(), o = t, this.maybeShortenTextLinks(t.text, function(e) {
                 t.text = e, this.actuallySendTweet(t)
             }.bind(this))
         }, this.actuallySendTweet = function(t) {
@@ -8960,28 +9522,35 @@ function(t, e) {
                 requestId: t.requestId,
                 requests: e,
                 scheduledDate: t.scheduledDate,
-                tokenToDelete: t.scheduledId
-            }) : e.forEach(function(t) {
+                tokenToDelete: t.scheduledId,
+                metadata: t.metadata
+            }) : (e.forEach(function(t) {
                 this.trigger("uiSendTweet", t)
-            }, this)
+            }, this), this.trigger("uiSendScheduledTweets", {
+                requestId: t.requestId,
+                requests: [],
+                scheduledDate: t.scheduledDate,
+                tokenToDelete: t.scheduledId,
+                metadata: t.metadata
+            }))
         }, this.handleDataTweetSent = function(e, i) {
             var s;
-            n && i.request.requestId === n.requestId && (s = n.from.indexOf(i.request.accountKey), s > -1 && n.from.splice(s, 1), 0 === n.from.length && (0 === t.length ? this.triggerTweetSuccess() : this.triggerTweetError()))
+            o && i.request.requestId === o.requestId && (s = o.from.indexOf(i.request.accountKey), s > -1 && o.from.splice(s, 1), 0 === o.from.length && (0 === t.length ? this.triggerTweetSuccess() : this.triggerTweetError()))
         }, this.handleDataScheduledTweetsSent = function(t, e) {
-            n && e.request.requestId === n.requestId && this.triggerTweetSuccess()
+            o && e.request.requestId === o.requestId && this.triggerTweetSuccess()
         }, this.handleDataTweetError = function(e, i) {
             var s;
-            n && i.request.requestId === n.requestId && (s = n.from.indexOf(i.request.accountKey), s > -1 && n.from.splice(s, 1), t.push(i), 0 === n.from.length && this.triggerTweetError())
+            o && i.request.requestId === o.requestId && (s = o.from.indexOf(i.request.accountKey), s > -1 && o.from.splice(s, 1), t.push(i), 0 === o.from.length && this.triggerTweetError())
         }, this.handleDataScheduledTweetsError = function(t, e) {
-            var i, s, o;
-            if (n && e.request.requestId === n.requestId) {
+            var i, s, n;
+            if (o && e.request.requestId === o.requestId) {
                 if (e.response.humanReadableMessage) i = e.response.humanReadableMessage;
                 else {
                     try {
                         s = JSON.parse(e.response.req.responseText)
                     } catch (r) {}
-                    o = s && s.error ? s.error : e.response.req.status, i = TD.i("Scheduling failed. Please try again. ({{message}})", {
-                        message: o
+                    n = s && s.error ? s.error : e.response.req.status, i = TD.i("Scheduling failed. Please try again. ({{message}})", {
+                        message: n
                     })
                 }
                 TD.controller.progressIndicator.addMessage(i), this.triggerTweetError()
@@ -8989,13 +9558,11 @@ function(t, e) {
         }, this.showTweetErrors = function(t) {
             if (0 !== t.length) {
                 var e = t.map(function(t) {
-                    var e, i, s;
+                    var e, i, s, n = {};
                     try {
-                        e = JSON.parse(t.response.responseText).errors[0].message
-                    } catch (n) {
-                        e = TD.i("Unknown error")
-                    }
-                    switch (i = this.getAccountData(t.request.accountKey), s = i ? i.screenName : "unknown account", this.tweetType) {
+                        n = JSON.parse(t.response.responseText).errors[0]
+                    } catch (o) {}
+                    switch (e = this.getApiErrorMessage(n), i = this.getAccountData(t.request.accountKey), s = i ? i.screenName : "unknown account", this.tweetType) {
                         case "message":
                             return TD.i("Message from @{{screenName}} failed: {{message}}", {
                                 screenName: s,
@@ -9014,7 +9581,7 @@ function(t, e) {
             this.trigger("uiComposeTweetSent")
         }, this.triggerTweetError = function() {
             this.showTweetErrors(t), this.trigger("uiComposeTweetError", {
-                errors: n.scheduledDate ? null : t
+                errors: o.scheduledDate ? null : t
             })
         }
     }
@@ -9041,7 +9608,7 @@ function(t, e) {
         }), this.setupDOM = function() {
             this.select("closeSelector").on("click", this.handleCloseClick.bind(this)), this.select("popSelector").on("click", this.handlePopClick.bind(this)), this.select("addImageSelector").on("click", this.handleAddImageClick.bind(this)), this.select("accountSelector").on("click", this.handlePopClick.bind(this))
         }, this.handleUiInlineComposeTweet = function(i, s) {
-            return t = s || {}, t.singleFrom = [s.from[0]], $(s.element).find(this.attr.inlineReplySelector).length > 0 ? void this.closeInlineCompose() : (e && this.closeInlineCompose(), this.focusRequest(), this.setupInlineCompose(t), void 0)
+            return t = s || {}, t.singleFrom = [s.from[0]], $(s.element).find(this.attr.inlineReplySelector).length > 0 ? (this.closeInlineCompose(), void 0) : (e && this.closeInlineCompose(), this.focusRequest(), this.setupInlineCompose(t), void 0)
         }, this.setupInlineCompose = function(t) {
             e = t.element, e.find(".js-tweet-actions").addClass("is-visible"), e.find(".js-detail-view-inline").addClass("is-hidden"), e.find(".js-reply-action").addClass("is-selected");
             var s = this.getAccountData(t.from);
@@ -9059,7 +9626,7 @@ function(t, e) {
                 t.stopPropagation()
             });
             var r = i.parents(".js-column");
-            r.hasClass("js-column-state-detail-view") || TD.ui.columns.lockColumnScrolling(r.attr("data-column"))
+            r.hasClass("js-column-state-detail-view") || TD.ui.columns.lockColumnToElement(r.attr("data-column"), e)
         }, this.closeInlineCompose = function(t, s) {
             s && s.keyboardShortcut && !this.hasFocus || e && (this.saveDraftText(this.composeTextGetText()), this.closeAndRemovePanels(), this.focusRelease(), Modernizr.csstransitions || this.handleAnimationEnd({
                 target: i.get(0)
@@ -9074,8 +9641,8 @@ function(t, e) {
             var e = $(t.target);
             if (e.hasClass("is-inline-inactive")) {
                 var s = e.parents(".js-column").attr("data-column"),
-                    n = e.parent(".js-stream-item-content");
-                TD.ui.columns.unlockColumnScrolling(s), n.find(this.attr.tweetActionsSelector).removeClass("is-visible"), n.find(this.attr.replyActionSelector).removeClass("is-selected"), n.find(this.attr.detailViewInlineSelector).removeClass("is-hidden"), e.remove()
+                    n = e.parents(".js-stream-item-content");
+                TD.ui.columns.unlockColumnFromElement(s), n.find(this.attr.tweetActionsSelector).removeClass("is-visible"), n.find(this.attr.replyActionSelector).removeClass("is-selected"), n.find(this.attr.detailViewInlineSelector).removeClass("is-hidden"), e.remove()
             } else this.scrollColumnIfRequired(), i.css({
                 overflow: "visible"
             })
@@ -9180,6 +9747,535 @@ function(t, e) {
     var i = t("flight/lib/component"),
         s = t("ui/compose/inline_compose");
     return i(e)
+}), define("ui/drag_drop/drag_drop_controller", ["require", "flight/lib/component", "ui/drag_drop/with_drag_drop"], function(t) {
+    function e() {
+        this.after("initialize", function() {
+            this.on("dragstart", function(t) {
+                this.trigger(document, "uiDragStart", this.extractDataFromEvent(t))
+            }), this.on("dragend", function(t) {
+                this.trigger(document, "uiDragEnd", this.extractDataFromEvent(t))
+            })
+        })
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/drag_drop/with_drag_drop");
+    return i(e, s)
+}), define("ui/with_drag_handle", ["require", "scripts/sync/util"], function(t) {
+    function e() {
+        this.setupDragHandle = function(t) {
+            ["boundary", "draggable", "handle"].forEach(function(e) {
+                i.assert(t[e], "Required parameter " + e + " omitted")
+            }), t.draggable.draggable({
+                boundary: t.boundary,
+                handle: t.handle
+            }).on("start.draggable", function() {
+                t.draggable.css({
+                    position: "absolute",
+                    top: t.draggable.offset().top,
+                    left: t.draggable.offset().left
+                }), t.boundary.addClass("is-dragging")
+            }).on("drop.draggable", function() {
+                t.boundary.removeClass("is-dragging")
+            })
+        }
+    }
+    var i = t("scripts/sync/util");
+    return e
+}), define("ui/modal/modal_controller", ["require", "flight/lib/component", "ui/with_template", "ui/with_drag_handle"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            modalContextTemplate: "modal/modal_context",
+            modalContextSelector: ".js-modal-context",
+            modalInnerSelector: ".js-modal-inner",
+            modalContentSelector: ".js-modal-content",
+            modalClickTrapSelector: ".js-click-trap",
+            modalDismissSelector: ".js-dismiss",
+            modalDragHandleSelector: ".js-drag-handle",
+            modalOptions: {
+                withCenteredFooter: !1,
+                withChrome: !0,
+                withClickTrap: !0,
+                withDismissButton: !0,
+                withDoneButton: !1,
+                withDraggable: !0,
+                withDragHandle: !0,
+                withFooter: !0,
+                withHeader: !0,
+                withBorder: !0,
+                withClasses: [],
+                withContentClasses: [],
+                withOverlayClasses: []
+            }
+        }), this.after("initialize", function() {
+            this.on(document, "uiNeedsModalContext", this.handleCreateModalContext), this.on("uiModalShowing", {
+                modalContextSelector: this.handleModalShowing
+            }), this.on("uiModalHiding", {
+                modalContextSelector: this.handleModalHiding
+            }), this.on("click", {
+                modalDismissSelector: this.handleModalDismiss,
+                modalClickTrapSelector: this.handleModalContextClick
+            })
+        }), this.handleCreateModalContext = function(t, e) {
+            var i = _.defaults(e || {}, this.attr.modalOptions),
+                s = this.createModalContext(i),
+                n = s.find(this.attr.modalInnerSelector),
+                o = n.find(this.attr.modalContentSelector);
+            s.addClass("is-hidden").addClass(i.withOverlayClasses.join(" ")), n.addClass(i.withClasses.join(" ")), o.addClass(i.withContentClasses.join(" ")), this.$node.append(s), this.trigger("uiModalContext", {
+                id: i.id,
+                $node: s.find(this.attr.modalContentSelector)
+            }), i.withDraggable && this.setupDragHandle({
+                draggable: n,
+                handle: n.find(this.attr.modalDragHandleSelector),
+                boundary: s
+            })
+        }, this.createModalContext = function(t) {
+            return this.renderTemplate(this.attr.modalContextTemplate, t)
+        }, this.handleModalShowing = function(t, e) {
+            this.select("modalContextSelector").addClass("is-hidden"), $(e.el).removeClass("is-hidden")
+        }, this.handleModalHiding = function(t, e) {
+            $(e.el).remove()
+        }, this.handleModalDismiss = function() {
+            this.closeModals()
+        }, this.closeModals = function() {
+            this.trigger("uiCloseModal")
+        }, this.handleModalContextClick = function(t, e) {
+            var i = $(e.el),
+                s = $(t.target);
+            s.closest(this.attr.modalInnerSelector, i).length || this.closeModals()
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_template"),
+        n = t("ui/with_drag_handle");
+    return i(e, s, n)
+}), define("ui/migrate_education", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_modalable"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            template: "login/migrate_education",
+            migrateContinueSelector: ".js-migrate-continue",
+            migrateCancelSelector: ".js-migrate-cancel",
+            tweetDeckAccount: null
+        }), this.after("initialize", function() {
+            this.on("click", {
+                migrateContinueSelector: this.handleMigrateContinue,
+                migrateCancelSelector: this.handleMigrateCancel
+            }), this.render(this.attr.template, {
+                tweetDeckAccount: this.attr.tweetDeckAccount
+            })
+        }), this.handleMigrateCancel = function() {
+            this.trigger("uiMigrateEducationCancel"), this.teardown()
+        }, this.handleMigrateContinue = function() {
+            this.trigger("uiMigrateEducationContinue"), this.teardown()
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_template"),
+        n = t("ui/modal/with_modalable");
+    return i(e, s, n)
+}), define("ui/migrate_risk", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_modalable"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            template: "login/migrate_risk",
+            migrateContinueSelector: ".js-migrate-continue",
+            migrateCancelSelector: ".js-migrate-cancel",
+            migrateAccountTypeInputSelector: ".js-migrate-account-type-input",
+            migrateAccountTypeInputCheckedSelector: ".js-migrate-account-type-input:checked"
+        }), this.after("initialize", function() {
+            this.accountType = null, this.on("click", {
+                migrateContinueSelector: this.handleMigrateContinue,
+                migrateCancelSelector: this.handleMigrateCancel
+            }), this.on("change", {
+                migrateAccountTypeInputSelector: this.handleAccountTypeChange
+            }), this.render(this.attr.template)
+        }), this.handleAccountTypeChange = function() {
+            this.select("migrateContinueSelector").prop("disabled", !1)
+        }, this.getAccountType = function() {
+            return this.select("migrateAccountTypeInputCheckedSelector").val()
+        }, this.handleMigrateCancel = function() {
+            this.trigger("uiMigrateRiskCancel"), this.teardown()
+        }, this.handleMigrateContinue = function() {
+            if (!this.select("migrateContinueSelector").prop("disabled")) {
+                var t = "uiMigrateRiskSingleContinue",
+                    e = this.getAccountType();
+                "multiple" === e && (t = "uiMigrateRiskMultipleContinue"), this.trigger(t, {
+                    accountType: e
+                }), this.select("migrateContinueSelector").prop("disabled", !0), this.select("migrateAccountTypeInputSelector").prop("disabled", !0)
+            }
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_template"),
+        n = t("ui/modal/with_modalable");
+    return i(e, s, n)
+}), define("ui/migrate_risk_agreement", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_modalable"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            template: "login/migrate_risk_agreement",
+            migrateContinueSelector: ".js-migrate-continue",
+            migrateCancelSelector: ".js-migrate-cancel"
+        }), this.after("initialize", function() {
+            this.accountType = null, this.on("click", {
+                migrateContinueSelector: this.handleMigrateContinue,
+                migrateCancelSelector: this.handleMigrateCancel
+            }), this.render(this.attr.template)
+        }), this.handleMigrateCancel = function() {
+            this.trigger("uiMigrateRiskAgreementCancel"), this.teardown()
+        }, this.handleMigrateContinue = function() {
+            this.select("migrateContinueSelector").prop("disabled") || (this.trigger("uiMigrateRiskAgreementContinue"), this.select("migrateContinueSelector").prop("disabled", !0), this.select("migrateCancelSelector").prop("disabled", !0))
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_template"),
+        n = t("ui/modal/with_modalable");
+    return i(e, s, n)
+}), define("ui/migrate_progress", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_modalable", "util/wait_at_least"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            template: "login/migrate_progress",
+            transientErrorTemplate: "login/migrate_progress_transient_error",
+            mergeErrorTemplate: "login/migrate_progress_merge_error",
+            successTemplate: "login/migrate_progress_success",
+            minWaitTime: 5e3,
+            migrateProgressClass: "migrate-progress",
+            migrateInProgressClass: "migrate-in-progress",
+            migrateProgressSuccessClass: "migrate-progress-success",
+            migrateProgressPreviewSelector: ".js-migrate-progress-preview",
+            migrateProgressNextSelector: ".js-migrate-progress-next",
+            migrateProgressDoneSelector: ".js-dismiss",
+            migrateProgressErrorExitSelector: ".js-migrate-progress-error-exit",
+            twitterAccountUsername: "",
+            numAccountsAdded: 0,
+            numColumnsAdded: 0,
+            numScheduledAdded: 0,
+            numMuteItemsAdded: 0
+        }), this.after("initialize", function() {
+            this.on("click", {
+                migrateProgressErrorExitSelector: this.handleMigrateProgressExit,
+                migrateProgressNextSelector: this.migrateProgressNext,
+                migrateProgressDoneSelector: this.handleMigrateProgressDoneClick
+            }), this.$node.addClass(this.attr.migrateProgressClass);
+            var t = this.attr.template;
+            this.attr.error ? t = "TransientError" === this.attr.error.data.error ? this.attr.transientErrorTemplate : this.attr.mergeErrorTemplate : (this.on(document, "TD.ready uiMigrateProgressAppReady", this.handleAppReady), this.initTimestamp = Date.now(), this.$node.addClass(this.attr.migrateInProgressClass)), this.render(t, {
+                error: this.attr.error,
+                twitterAccountUsername: this.attr.twitterAccountUsername,
+                numAccountsAdded: this.attr.numAccountsAdded,
+                numColumnsAdded: this.attr.numColumnsAdded,
+                numScheduledAdded: this.attr.numScheduledAdded,
+                numMuteItemsAdded: this.attr.numMuteItemsAdded
+            })
+        }), this.handleAppReady = function() {
+            o(this.attr.minWaitTime, this.initTimestamp, function() {
+                this.$node.removeClass(this.attr.migrateInProgressClass), this.migrateProgressNext()
+            }, this)
+        }, this.handleMigrateProgressExit = function() {
+            this.trigger("uiMigrateProgressCancel")
+        }, this.migrateProgressNext = function() {
+            this.trigger("uiMigrateProgressNext");
+            var t = TD.storage.accountController.getAccountFromId(TD.storage.store.getTwitterLoginAccount().getUserID()),
+                e = {
+                    id: t.getUserID(),
+                    screenName: t.getUsername(),
+                    name: t.getName(),
+                    profileImageURL: t.getProfileImageURL(),
+                    isVerified: !1
+                }, i = TD.storage.accountController.getAccountsForService("twitter").length;
+            this.$node.addClass(this.attr.migrateProgressSuccessClass), this.render(this.attr.successTemplate, {
+                twitterProfile: e,
+                hasMultipleAccounts: i > 1
+            })
+        }, this.handleMigrateProgressDoneClick = function() {
+            this.trigger("uiMigrateProgressDone")
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_template"),
+        n = t("ui/modal/with_modalable"),
+        o = t("util/wait_at_least");
+    return i(e, s, n)
+}), define("ui/migrate_controller", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_show_modal", "util/wait_at_least", "ui/migrate_education", "ui/migrate_risk", "ui/migrate_risk_agreement", "ui/migrate_progress"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            minProgressWaitTime: 1e3,
+            minCompleteWaitTime: 3e3,
+            modalConfig: {
+                withHeader: !1,
+                withFooter: !1,
+                withDraggable: !1,
+                withDragHandle: !1,
+                withDismissButton: !1,
+                withChrome: !1,
+                withBorder: !1,
+                withClickTrap: !1
+            },
+            riskAgreementModalConfig: {
+                withOverlayClasses: ["overlay-opaque"]
+            }
+        }), this.after("initialize", function() {
+            this.on(document, "uiMigrateStart", this.handleUiMigrateStart), this.on(document, "uiMigrateEducationContinue", this.handleUiMigrateEducationContinue), this.on(document, "uiMigrateEducationCancel", this.handleUiMigrateEducationCancel), this.on(document, "uiMigrateRiskSingleContinue", this.handleUiRiskSingleContinue), this.on(document, "uiMigrateRiskMultipleContinue", this.handleUiRiskMultipleContinue), this.on(document, "uiMigrateRiskCancel", this.handleUiRiskCancel), this.on(document, "uiMigrateRiskAgreementContinue", this.handleUiRiskAgreementContinue), this.on(document, "uiMigrateRiskAgreementCancel", this.handleUiRiskAgreementCancel), this.on(document, "uiMigrateProgressNext", this.handleMigrateProgressNext), this.on(document, "uiMigrateProgressDone", this.handleMigrateProgressDone), this.on(document, "uiMigrateProgressCancel", this.handleMigrateProgressCancel), this.on(document, "dataNeedsMigrateCompleteConfirmation", this.handleDataNeedsMigrateCompleteConfirmation), this.on(document, "uiMigrateSuccess", function(t, e) {
+                TD.controller.stats.migrateStartflow("migrate_progress", "impression"), this.migrateSuccessTimestamp = Date.now(), this.showModal(h, {
+                    twitterAccountUsername: TD.storage.store.getTwitterLoginAccount().getUsername(),
+                    numAccountsAdded: e.num_accounts_added,
+                    numColumnsAdded: e.num_columns_added,
+                    numScheduledAdded: e.num_scheduled_added,
+                    numMuteItemsAdded: e.num_mute_items_added
+                }, this.attr.modalConfig)
+            }), this.on(document, "uiMigrateError", function(t, e) {
+                TD.controller.stats.migrateStartflow("migrate_progress", "impression", !0), this.showModal(h, {
+                    error: e
+                }, this.attr.modalConfig)
+            })
+        }), this.handleUiMigrateStart = function() {
+            this.showModal(r, {
+                tweetDeckAccount: TD.storage.store.getTweetdeckAccount()
+            }, this.attr.modalConfig), TD.controller.stats.migrateAppflow("migrate_education", "impression")
+        }, this.handleUiMigrateEducationContinue = function() {
+            this.showModal(a, {}, _.defaults(this.attr.riskAgreementModalConfig, this.attr.modalConfig)), TD.controller.stats.migrateAppflow("migrate_education", "next"), TD.controller.stats.migrateAppflow("migrate_risk", "impression")
+        }, this.handleUiMigrateEducationCancel = function() {
+            TD.controller.stats.migrateAppflow("migrate_education", "cancel")
+        }, this.handleUiRiskSingleContinue = function() {
+            this.riskAccountType = "single", TD.controller.stats.migrateAppflow("migrate_risk", "next"), this.handleUiRiskAgreementContinue()
+        }, this.handleUiRiskMultipleContinue = function() {
+            this.riskAccountType = "multiple", this.showModal(c, {}, _.defaults(this.attr.riskAgreementModalConfig, this.attr.modalConfig)), TD.controller.stats.migrateAppflow("migrate_risk", "next"), TD.controller.stats.migrateAppflow("migrate_risk_agreement", "impression")
+        }, this.handleUiRiskCancel = function() {
+            TD.controller.stats.migrateAppflow("migrate_risk", "cancel")
+        }, this.handleUiRiskAgreementContinue = function() {
+            this.trigger("uiMigrateActive", {
+                accountType: this.riskAccountType
+            }), TD.controller.stats.migrateAppflow("migrate_risk_agreement", "next"), TD.controller.init.signOut()
+        }, this.handleUiRiskAgreementCancel = function() {
+            TD.controller.stats.migrateAppflow("migrate_risk_agreement", "cancel")
+        }, this.handleMigrateProgressNext = function() {
+            TD.controller.stats.migrateStartflow("migrate_progress", "next"), TD.controller.stats.migrateStartflow("migrate_progress_success", "impression")
+        }, this.handleMigrateProgressDone = function() {
+            TD.controller.stats.migrateStartflow("migrate_progress_success", "next")
+        }, this.handleMigrateProgressCancel = function() {
+            TD.controller.stats.migrateStartflow("migrate_progress", "previous"), TD.storage.store.setCurrentAuthType("tweetdeck"), this.trigger("uiMigrateCancel", {
+                clearMigrateData: !0
+            })
+        }, this.handleDataNeedsMigrateCompleteConfirmation = function() {
+            o(this.attr.minProgressWaitTime, this.migrateSuccessTimestamp, function() {
+                this.trigger("uiMigrateCompleteConfirmation")
+            }, this)
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_template"),
+        n = t("ui/modal/with_show_modal"),
+        o = t("util/wait_at_least"),
+        r = t("ui/migrate_education"),
+        a = t("ui/migrate_risk"),
+        c = t("ui/migrate_risk_agreement"),
+        h = t("ui/migrate_progress");
+    return i(e, s, n)
+}), define("ui/actions_menu", ["require", "flight/lib/component", "ui/with_dropdown"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            isActionsMenu: !0,
+            profileActionsButtonSelector: ".js-user-actions-menu",
+            chirpActionsContainerSelector: ".js-tweet-actions",
+            chirpActionsSelector: ".js-tweet-actions",
+            profileMenuTemplate: "menus/actions",
+            chirpMenuTemplate: "menus/actions",
+            dmMenuTemplate: "menus/actions_directmessage",
+            menuPosition: "pos-l"
+        }), this.after("initialize", function() {
+            this.state = {}, this.around("handleDocumentClick", this.maybeStopDocumentClick), this.after("renderDropdown", this.addActionsMenuClickHandler), this.before("teardownCurrentDropdown", this.removeActionsMenuClickHandler), this.before("teardownCurrentDropdown", this.removeForcedActionsMenuContainerVisibility), this.on("uiDetailViewClosing uiMediaGalleryClosing uiTwitterProfileClosing", this.teardownCurrentDropdown), this.on("click", {
+                profileActionsButtonSelector: this.handleUserButtonClick
+            }), this.on("uiShowActionsMenu", this.handleShowActionsMenu)
+        }), this.addActionsMenuClickHandler = function() {
+            this.currentDropdown && this.on(this.currentDropdown.$el, "click", this.handleActionsMenuClick)
+        }, this.removeActionsMenuClickHandler = function() {
+            this.currentDropdown && this.off(this.currentDropdown.$el, "click", this.handleActionsMenuClick)
+        }, this.removeForcedActionsMenuContainerVisibility = function() {
+            this.state.$actionsMenuContainer && (this.state.$actionsMenuContainer.removeClass("is-visible"), this.state.$actionsMenuContainer = null)
+        }, this.maybeStopDocumentClick = function(t, e) {
+            if (this.dropdownIsOpen()) {
+                var i = $(e.target).closest(this.attr.profileActionsButtonSelector);
+                0 === i.length && t(e)
+            }
+        }, this.showActionsMenu = function(t, e, i) {
+            var s, n, o, r, a, c = 1 === TD.storage.accountController.getAccountsForService("twitter").length,
+                h = t.data("actions-menu-position");
+            i ? (i.getRelatedTweet && (i = i.getRelatedTweet() || i), s = !c, n = i.getMedia().some(function(t) {
+                return t.flaggedNSFW
+            }), o = i instanceof TD.services.TwitterDirectMessage, r = o ? this.attr.dmMenuTemplate : this.attr.chirpMenuTemplate, e = i.getMainUser()) : r = this.attr.profileMenuTemplate, a = TD.controller.filterManager.hasFilterApplied("sender", e.screenName), this.renderDropdown(t, r, {
+                showFavorite: s,
+                isFlagged: n,
+                isMuted: a,
+                user: e,
+                chirp: i,
+                isSingleAccount: c
+            }, {
+                toggle: !0,
+                position: h || this.attr.menuPosition
+            }), this.state = {
+                user: e,
+                chirp: i,
+                $actionsMenuContainer: t.closest(this.attr.chirpActionsContainerSelector)
+            }, this.state.$actionsMenuContainer.addClass("is-visible")
+        }, this.handleShowActionsMenu = function(t) {
+            var e = $(t.target),
+                i = e.attr("data-parent-chirp-id");
+            i || (i = e.attr("data-chirp-id"));
+            var s = e.attr("data-account-key"),
+                n = TD.controller.columnManager.findChirpByAccountKey(i, s);
+            this.showActionsMenu(e, null, n)
+        }, this.handleUserButtonClick = function(t) {
+            var e = $(t.target).closest(this.attr.profileActionsButtonSelector),
+                i = TD.cache.twitterUsers.getById(e.data("user-id"));
+            t.stopPropagation(), t.preventDefault(), i.addCallback(function(t) {
+                this.showActionsMenu(e, t, null)
+            }.bind(this))
+        }, this.handleFlagTweetSuccess = function() {
+            var t = this.state.chirp.getMedia();
+            t.forEach(function(t) {
+                t.flaggedNSFW = !0
+            }), TD.controller.progressIndicator.addMessage(TD.i("Success: Media flagged"))
+        }, this.handleFlagTweetError = function() {
+            TD.controller.progressIndicator.addMessage(TD.i("Error: Failed to flag media. Please try again."))
+        }, this.handleActionsMenuClick = function(t) {
+            var e = $(t.target);
+            if (0 !== e.closest(this.attr.isSelectedSelector).length) {
+                var i, s = e.data("action"),
+                    n = !0,
+                    o = this.state.user,
+                    r = this.state.chirp,
+                    a = [];
+                switch (r && a.push(r.account.getKey()), r ? this.trigger("metricRealtime", {
+                    action: ["chirp", "ui", r.chirpType, s].join(":")
+                }) : this.trigger("metricRealtime", {
+                    action: ["user", "ui", s].join(":")
+                }), s) {
+                    case "mention":
+                        this.trigger("uiComposeTweet", {
+                            text: "@" + o.screenName + " ",
+                            from: a
+                        });
+                        break;
+                    case "message":
+                        this.trigger("uiComposeTweet", {
+                            type: "message",
+                            from: a,
+                            messageRecipient: {
+                                screenName: o.screenName,
+                                avatar: o.profileImageURL
+                            }
+                        });
+                        break;
+                    case "lists":
+                        new TD.components.AddToListsDialog(o);
+                        break;
+                    case "flag-media":
+                        TD.controller.progressIndicator.addMessage(TD.i("Flagging media…")), i = TD.controller.clients.getClient(r.account.getKey()), i.flagTweet(r.id, this.handleFlagTweetSuccess.bind(this), this.handleFlagTweetError);
+                        break;
+                    case "block":
+                        this.trigger("uiBlockAction", {
+                            account: o.account,
+                            twitterUser: o
+                        });
+                        break;
+                    case "report-tweet":
+                        this.trigger("uiShowReportTweetOptions", {
+                            account: o.account,
+                            tweetId: r.id,
+                            twitterUser: o,
+                            isMessage: r instanceof TD.services.TwitterDirectMessage
+                        });
+                        break;
+                    case "report-spam":
+                        this.trigger("uiReportSpamAction", {
+                            account: o.account,
+                            twitterUser: o,
+                            block: !0
+                        }), this.trigger("uiCloseModal");
+                        break;
+                    case "followOrUnfollow":
+                        this.trigger("uiShowFollowFromOptions", {
+                            userToFollow: o
+                        });
+                        break;
+                    case "favoriteOrUnfavorite":
+                        this.trigger("uiShowFavoriteFromOptions", {
+                            tweet: r
+                        });
+                        break;
+                    case "follow":
+                        o.follow(o.account, null, null, !0);
+                        break;
+                    case "unfollow":
+                        o.unfollow(o.account, null, null, !0);
+                        break;
+                    case "reference-to":
+                        r.referenceTo();
+                        break;
+                    case "email":
+                        r.email();
+                        break;
+                    case "mute":
+                        TD.controller.filterManager.addFilter("sender", o.screenName), TD.controller.progressIndicator.addMessage(TD.i("@{{screenName}} muted. Unmute in Settings", {
+                            screenName: o.screenName
+                        }));
+                        break;
+                    case "destroy":
+                        r.destroy();
+                        break;
+                    case "undo-retweet":
+                        $(document).trigger("uiUndoRetweet", {
+                            tweetId: r.getMainTweet().id,
+                            from: r.account.getKey()
+                        });
+                        break;
+                    case "customtimelines":
+                        new TD.components.AddToCustomTimelineDialog(r.getMainTweet());
+                        break;
+                    case "embed":
+                        this.trigger("uiShowEmbedTweet", {
+                            tweet: r.getMainTweet()
+                        });
+                        break;
+                    case "translate":
+                        r.translate();
+                        break;
+                    default:
+                        n = !1
+                }
+                n && (t.preventDefault(), t.stopPropagation()), this.teardownCurrentDropdown()
+            }
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_dropdown");
+    return i(e, s)
+}), define("ui/columns/column_drag_drop", ["require", "flight/lib/component"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            columnDragHandleSelector: ".js-column-drag-handle",
+            appColumnsContainerSelector: ".js-app-columns-container",
+            columnsContainerSelector: ".js-app-columns",
+            columnSelector: ".js-column"
+        }), this.after("initialize", function() {
+            this.on("uiColumnRendered", this.handleColumnRendered), this.select("columnsContainerSelector").dragdroplist({
+                selector: this.attr.columnSelector,
+                contentSelector: this.attr.columnSelector,
+                handle: this.attr.columnDragHandleSelector,
+                $boundary: this.select("appColumnsContainerSelector"),
+                orientation: "horizontal",
+                tagName: "section",
+                scroll_speed: 24
+            }).on("dropped.dragdroplist", function() {
+                var t = [];
+                this.select("columnSelector").each(function() {
+                    t.push($(this).attr("data-column"))
+                }), TD.storage.clientController.client.setColumnOrder(t)
+            }.bind(this))
+        }), this.handleColumnRendered = function(t, e) {
+            e.$column.trigger("itemadded.dragdroplist", {
+                itemId: e.column
+            })
+        }
+    }
+    var i = t("flight/lib/component");
+    return i(e)
 }), define("ui/compose/with_add_image", [], function() {
     return function() {
         var t = null;
@@ -9212,12 +10308,12 @@ function(t, e) {
             e.push(t)
         }, this.runReceiveHandlers = function() {
             t.forEach(function(t) {
-                t.bind(this)()
-            }.bind(this))
+                t.call(this)
+            }, this)
         }, this.runLoseHandlers = function(t) {
             this.targetWithinComponent(t.target) || e.forEach(function(t) {
-                t.bind(this)()
-            }.bind(this))
+                t.call(this)
+            }, this)
         }, this.targetWithinComponent = function(t) {
             return $(t).closest(this.$node).length > 0
         }, this.enableClickTrap = function() {
@@ -9235,8 +10331,8 @@ function(t, e) {
             messageButtonSelector: ".js-dm-button",
             tweetButtonSelector: ".js-tweet-button"
         }), this.after("initialize", function() {
-            this.$messageButton = this.select("messageButtonSelector"), this.$tweetButton = this.select("tweetButtonSelector"), this.on(this.$messageButton, "click", function() {
-                this.trigger(document, "uiComposeTweet", {
+            this.messageIsDisabled = !1, this.$messageButton = this.select("messageButtonSelector"), this.$tweetButton = this.select("tweetButtonSelector"), this.on(this.$messageButton, "click", function() {
+                this.messageIsDisabled || this.trigger(document, "uiComposeTweet", {
                     type: "message"
                 })
             }), this.on(this.$tweetButton, "click", function() {
@@ -9244,7 +10340,11 @@ function(t, e) {
                     type: "tweet"
                 })
             })
-        }), this.setMessageToggleButton = function(t) {
+        }), this.disableMessageButton = function(t) {
+            this.messageIsDisabled || (this.messageIsDisabled = !0, this.$messageButton.addClass("is-disabled").attr("tabindex", "-1").attr("data-original-title", t || ""))
+        }, this.enableMessageButton = function() {
+            this.messageIsDisabled && (this.messageIsDisabled = !1, this.$messageButton.removeClass("is-disabled").attr("tabindex", "0").removeAttr("data-original-title"))
+        }, this.setMessageToggleButton = function(t) {
             "message" === t ? (this.$messageButton.addClass("is-hidden"), this.$tweetButton.removeClass("is-hidden")) : (this.$messageButton.removeClass("is-hidden"), this.$tweetButton.addClass("is-hidden"))
         }
     }
@@ -9301,7 +10401,9 @@ function(t, e) {
             var e = this.renderTemplate("compose/media_bar_image", {
                 src: t
             });
-            this.$mediaBarContainer.html(e), e[0].complete ? this.setImageHeight(e) : e.load(function() {
+            this.$mediaBarContainer.html(e), this.$mediaBarContainer.on("click", function() {
+                $(event.target).is("img") && this.trigger("uiComposeImageClicked")
+            }.bind(this)), e[0].complete ? this.setImageHeight(e) : e.load(function() {
                 this.setImageHeight(e)
             }.bind(this))
         }, this.setImageHeight = function(t) {
@@ -9404,31 +10506,30 @@ function(t, e) {
     }
 }), define("ui/compose/with_scheduler", [], function() {
     return function() {
-        var t = null,
-            e = !1;
         this.defaultAttrs({
             scheduleButtonSelector: ".js-schedule-button",
             scheduleButtonLabelSelector: ".js-schedule-button-label",
-            scheduleDatePickerHolderSelector: ".js-schedule-datepicker-holder"
+            scheduleDatePickerHolderSelector: ".js-schedule-datepicker-holder",
+            schedulerPastCheckIntervalPeriod: 1e3
         }), this.after("initialize", function() {
-            this.$scheduleButton = this.select("scheduleButtonSelector"), this.$scheduleButtonLabel = this.select("scheduleButtonLabelSelector"), this.$scheduleDatePickerHolder = this.select("scheduleDatePickerHolderSelector"), this.scheduleButtonTitleTweet = TD.i("Schedule Tweet"), this.scheduleButtonTitleMessage = TD.i("Schedule Message")
+            this.schedulerIsDisabled = null, this.schedulerPickerOpen = !1, this.$scheduleButton = this.select("scheduleButtonSelector"), this.$scheduleButtonLabel = this.select("scheduleButtonLabelSelector"), this.$scheduleDatePickerHolder = this.select("scheduleDatePickerHolderSelector"), this.scheduleButtonTitleTweet = TD.i("Schedule Tweet"), this.scheduleButtonTitleMessage = TD.i("Schedule Message")
         }), this.after("teardown", function() {
-            this.scheduleDatePicker && ($.unsubscribe(this.dateChangedSubscription), $.unsubscribe(this.dateRemovedSubscription))
-        }), this.disableScheduleButton = function(e) {
-            this.$scheduleButton.addClass("is-disabled").attr("tabindex", "-1").attr("data-original-title", e || ""), t !== !0 && (this.off(this.$scheduleButton, "click"), t = !0)
+            this.scheduleDatePicker && ($.unsubscribe(this.dateChangedSubscription), $.unsubscribe(this.dateRemovedSubscription)), clearInterval(this.schedulerPastCheckInterval)
+        }), this.disableScheduleButton = function(t) {
+            this.$scheduleButton.addClass("is-disabled").attr("tabindex", "-1").attr("data-original-title", t || ""), this.schedulerIsDisabled !== !0 && (this.off(this.$scheduleButton, "click"), this.schedulerIsDisabled = !0)
         }, this.enableScheduleButton = function() {
-            this.$scheduleButton.removeClass("is-disabled").attr("tabindex", "0").removeAttr("data-original-title"), t !== !1 && (this.on(this.$scheduleButton, "click", this.handleScheduleButtonClick), t = !1)
+            this.$scheduleButton.removeClass("is-disabled").attr("tabindex", "0").removeAttr("data-original-title"), this.schedulerIsDisabled !== !1 && (this.on(this.$scheduleButton, "click", this.handleScheduleButtonClick), this.schedulerIsDisabled = !1)
         }, this.handleScheduleButtonClick = function() {
             this.initScheduleDatePicker()
         }, this.resetScheduler = function() {
             this.setScheduledDate(null)
         }, this.openScheduleDatePicker = function() {
-            e || ($("body").on("click.scheduleclicktrap", function(t) {
+            this.schedulerPickerOpen || ($("body").on("click.scheduleclicktrap", function(t) {
                 var e = $(t.target);
                 0 === e.closest(this.$scheduleDatePickerHolder).length && 0 === e.closest(this.$scheduleButton).length && this.closeScheduleDatePicker()
-            }.bind(this)), this.scheduleDatePicker.$node.show(), e = !0)
+            }.bind(this)), this.scheduleDatePicker.$node.show(), this.schedulerPickerOpen = !0)
         }, this.closeScheduleDatePicker = function() {
-            e && ($("body").off("click.scheduleclicktrap"), this.scheduleDatePicker.$node.hide(), e = !1)
+            this.schedulerPickerOpen && ($("body").off("click.scheduleclicktrap"), this.scheduleDatePicker.$node.hide(), this.schedulerPickerOpen = !1)
         }, this.initScheduleDatePicker = function() {
             var t = function() {
                 this.closeScheduleDatePicker(), this.scheduledDate = null, this.trigger("uiComposeScheduleDate", {
@@ -9436,13 +10537,19 @@ function(t, e) {
                 })
             };
             this.scheduleDatePicker ? (this.scheduleDatePicker.$node.is(":hidden") ? this.openScheduleDatePicker() : this.closeScheduleDatePicker(), this.scheduledDate || this.scheduleDatePicker.setDate(new Date)) : (this.dateChangedSubscription = $.subscribe("/change/date", this.setScheduledDate.bind(this)), this.dateRemovedSubscription = $.subscribe("/removed/date", t.bind(this)), this.scheduleDatePicker = new TD.components.ScheduledDatePicker(this.$scheduleDatePickerHolder), this.openScheduleDatePicker())
+        }, this.checkScheduledDatePassed = function() {
+            this.scheduledDate.getTime() < Date.now() && (this.trigger("uiScheduledDatePassed"), clearInterval(this.schedulerPastCheckInterval))
         }, this.setScheduledDate = function(t) {
             var e;
-            t ? (e = TD.util.prettyTimeString(t), this.$scheduleButtonLabel.text(e)) : this.closeScheduleDatePicker(), this.scheduledDate = t, this.trigger("uiComposeScheduleDate", {
+            this.scheduledDate = t, t ? (t.setSeconds(0), e = TD.util.prettyTimeString(t), this.$scheduleButtonLabel.text(e), clearInterval(this.schedulerPastCheckInterval), this.schedulerPastCheckInterval = setInterval(this.checkScheduledDatePassed.bind(this), this.attr.schedulerPastCheckIntervalPeriod)) : (this.closeScheduleDatePicker(), clearInterval(this.schedulerPastCheckInterval)), this.trigger("uiComposeScheduleDate", {
                 date: t
             })
         }, this.getScheduledDate = function() {
             return this.scheduledDate
+        }, this.isScheduling = function() {
+            return !!this.getScheduledDate()
+        }, this.isScheduledImagesEnabled = function() {
+            return TD.decider.hasAccessLevel("scheduler", "WRITE_MEDIA")
         }, this.setScheduledId = function(t) {
             this.scheduledId = t
         }, this.getScheduledId = function() {
@@ -9492,7 +10599,7 @@ function(t, e) {
             this.$title = this.select("titleSelector"), this.$header = this.select("headerSelector")
         }), this.setTitle = function(t, e) {
             var i, s;
-            "message" === t ? (s = !0, i = TD.i(e ? "Edit scheduled message" : "New direct message")) : (s = !1, i = TD.i(e ? "Edit scheduled Tweet" : "New Tweet")), this.$title.text(i), this.$header.toggleClass("with-dm-icon", s)
+            "message" === t ? (s = !0, i = e ? TD.i("Edit scheduled message") : TD.i("New direct message")) : (s = !1, i = e ? TD.i("Edit scheduled Tweet") : TD.i("New Tweet")), this.$title.text(i), this.$header.toggleClass("with-dm-icon", s)
         }
     }
 }), define("ui/compose/docked_compose", ["require", "flight/lib/component", "util/tweet_utils", "ui/compose/with_account_selector", "ui/compose/with_add_image", "ui/compose/with_character_count", "ui/with_click_trap", "data/with_client", "ui/compose/with_compose_text", "ui/compose/with_direct_message_button", "ui/with_focus", "ui/compose/with_hint", "ui/compose/with_in_reply_to", "ui/compose/with_media_bar", "ui/compose/with_message_recipient", "ui/compose/with_scheduler", "ui/compose/with_send_button", "ui/compose/with_send_tweet", "ui/compose/with_stay_open", "ui/compose/with_title"], function(t) {
@@ -9532,13 +10639,13 @@ function(t, e) {
                 this.hasFocus || this.focusRequest()
             }), this.onLoseClick(function() {
                 this.hasFocus && this.focusRelease()
-            }), this.on(document, "uiMainWindowResized", this.debouncedInitScrollbars), this.on("uiComposeImageAdded", this.debouncedInitScrollbars), this.on("uiComposeTextBlur", this.handleComposeTextBlur), this.on("uiComposeCharCount", this.handleComposeCharCount), this.initScrollbars({
+            }), this.on(document, "uiMainWindowResized", this.debouncedInitScrollbars), this.on("uiComposeImageAdded", this.debouncedInitScrollbars), this.on("uiComposeImageClicked", this.composeTextSetFocus), this.on("uiComposeTextBlur", this.handleComposeTextBlur), this.on("uiComposeCharCount", this.handleComposeCharCount), this.initScrollbars({
                 initialDisplay: !1
             })
         }), this.setupDOM = function() {
             this.$composeScroller = this.select("composeScrollerSelector"), TD.util.isTouchDevice() && TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) && this.$node.addClass(this.attr.withTouchComposeClass)
         }, this.handleUiComposeTweet = function(t, e) {
-            if (e = e || {}, this.tweetType = e.type || "tweet", this.resetComposePanelState(e), $(document).trigger("uiCloseModal"), e.noFocus || this.focusRequest(), this.enableClickTrap(), e.columnKey) {
+            if (e = e || {}, this.tweetType = e.type || "tweet", this.resetComposePanelState(e), e.noFocus || this.focusRequest(), this.enableClickTrap(), e.columnKey) {
                 var i = TD.controller.columnManager.get(e.columnKey),
                     s = i.getFeeds(),
                     n = s.map(function(t) {
@@ -9559,7 +10666,7 @@ function(t, e) {
             if (t.stopPropagation(), (!t.keyboardShortcut || this.hasFocus) && this.sendButtonIsEnabled()) {
                 var i = _.uniqueId("sendTweet"),
                     s = $.extend({}, e);
-                s.requestId = i, s.text = this.composeTextGetText(), s.inReplyToStatusId = this.getInReplyToId(), s.file = this.getFile(), s.messageRecipient = this.getMessageRecipient(), s.scheduledDate = this.getScheduledDate(), s.scheduledId = this.getScheduledId(), s.from = this.getSelectedAccounts(), s.type = this.tweetType, this.sendTweet(s)
+                s.requestId = i, s.text = this.composeTextGetText(), s.inReplyToStatusId = this.getInReplyToId(), s.file = this.getFile(), s.messageRecipient = this.getMessageRecipient(), s.scheduledDate = this.getScheduledDate(), s.scheduledId = this.getScheduledId(), s.from = this.getSelectedAccounts(), s.type = this.tweetType, s.metadata = this.getMetadata(), this.sendTweet(s)
             }
         }, this.enterSendingState = function(t) {
             t.stopPropagation(), this.disablePanelInputs(), this.sendButtonShowSending()
@@ -9584,7 +10691,7 @@ function(t, e) {
             var e, i, n, o, r = {}, a = TD.config.force_dm_photos || TD.decider.get(TD.decider.DM_PHOTO_SENDING);
             t = t || {};
             var c = void 0 !== t.text;
-            switch (c && this.destructivePanelReset(), this.enablePanelInputs(), t.schedule && (this.setScheduledDate(t.schedule.time), this.setScheduledId(t.schedule.id), this.setSelectedAccounts(t.from)), this.tweetType) {
+            switch (c && this.destructivePanelReset(), this.enablePanelInputs(), t.schedule && (this.setScheduledDate(t.schedule.time), this.setScheduledId(t.schedule.id), this.setSelectedAccounts(t.from)), this.alwaysSelectOneAccount = !1, this.tweetType) {
                 case "tweet":
                     this.removeInReplyTo(), void 0 !== t.text ? this.composeTextSetText(t.text) : (e = this.getMessageRecipient(), e && this.composeTextPrependText(s.atMentionify(e.screenName))), void 0 !== t.appendText && this.composeTextAppendText(t.appendText), this.hideMessageRecipient(), (t.from && t.from.length > 0 && this.panelWasClosed || t.isEditAndRetweet) && this.setSelectedAccounts(t.from), t.noFocus || (!TD.util.isiOSDevice() || !TD.decider.get(TD.decider.TOUCHDECK_COMPOSE)) && this.composeTextSetCaretToEnd();
                     break;
@@ -9604,9 +10711,9 @@ function(t, e) {
                         var h = s.removeFirstMention(this.composeTextGetText());
                         this.composeTextSetText(h)
                     }
-                    this.setMessageRecipient(r), this.removeInReplyTo(), a || this.removeFile(), t.from && t.from.length > 0 && this.setSelectedAccounts(t.from), TD.util.isiOSDevice() && TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) || (r && r.screenName ? this.composeTextSetCaretToEnd() : this.messageRecipientSetFocus())
+                    this.setMessageRecipient(r), this.removeInReplyTo(), a || this.removeFile(), t.from && t.from.length > 0 && this.setSelectedAccounts(t.from), TD.util.isiOSDevice() && TD.decider.get(TD.decider.TOUCHDECK_COMPOSE) || (r && r.screenName ? this.composeTextSetCaretToEnd() : this.messageRecipientSetFocus()), TD.decider.get(TD.decider.DM_SAME_FROM_MULTIPLE_ACCOUNTS) || (this.getSelectedAccounts().length > 1 && (this.setSelectedAccounts([]), TD.controller.progressIndicator.addMessage([TD.i("Messages cannot be sent from multiple accounts."), TD.i("Please choose an account.")].join(" "))), this.alwaysSelectOneAccount = !0)
             }
-            this.setTitle(this.tweetType, this.getScheduledId()), this.sendButtonSetText(this.tweetType, this.getScheduledDate()), this.setScheduleButtonTitle(this.tweetType), this.setMessageToggleButton(this.tweetType), this.inferAddImageButtonState(), this.inferScheduleButtonState(), this.debouncedInitScrollbars({
+            this.setTitle(this.tweetType, this.getScheduledId()), this.sendButtonSetText(this.tweetType, this.getScheduledDate()), this.setScheduleButtonTitle(this.tweetType), this.setMessageToggleButton(this.tweetType), this.inferAddImageButtonState(), this.inferScheduleButtonState(), this.inferMessageButtonState(), this.setMetadata(t.metadata), this.debouncedInitScrollbars({
                 initialDisplay: !1
             })
         }, this.handleUiFilesAdded = function(t, e) {
@@ -9615,15 +10722,30 @@ function(t, e) {
                 type: this.tweetType
             })
         }, this.handleUiComposeScheduleDate = function(t, e) {
-            this.sendButtonSetText(this.tweetType, this.getScheduledDate()), this.setScheduleButtonTitle(this.tweetType), this.inferAddImageButtonState(), e.date ? this.showScheduledHint() : this.hideHint(this.attr.hintOptions)
+            this.sendButtonSetText(this.tweetType, this.getScheduledDate()), this.setScheduleButtonTitle(this.tweetType), this.inferAddImageButtonState(), e.date ? this.showScheduledHint() : this.hideHint(this.attr.hintOptions), this.inferMessageButtonState()
+        }, this.inferMessageButtonState = function() {
+            var t = this.getScheduledDate();
+            t && TD.decider.get(TD.decider.DISABLE_SCHEDULED_MESSAGES) ? this.disableMessageButton(TD.i("Direct messages cannot be scheduled")) : this.enableMessageButton()
         }, this.inferAddImageButtonState = function() {
             var t, e = TD.config.force_dm_photos || TD.decider.get(TD.decider.DM_PHOTO_SENDING),
-                i = (e || "message" !== this.tweetType) && !this.getScheduledDate() && !this.getFile();
-            i ? (this.enableAddImageButton(), this.addImageButtonRemoveTooltip()) : (this.getScheduledDate() ? t = TD.i("Scheduled Tweets cannot contain images") : this.getFile() ? t = TD.i("You cannot add more than one image") : "message" === this.tweetType && (t = TD.i("Direct messages cannot contain images")), this.disableAddImageButton(), this.addImageButtonAddTooltip(t))
+                i = "message" === this.tweetType,
+                s = this.isScheduling(),
+                n = i && s,
+                o = !! this.getFile(),
+                r = !o,
+                a = i ? e : !0,
+                c = s ? this.isScheduledImagesEnabled() : !0,
+                h = !n;
+            r ? c ? a ? h || (t = TD.i("Scheduled direct messages cannot contain images")) : t = TD.i("Direct messages cannot contain images") : t = TD.i("Scheduled Tweets cannot contain images") : t = TD.i("You cannot add more than one image"), t ? (this.disableAddImageButton(), this.addImageButtonAddTooltip(t)) : (this.enableAddImageButton(), this.addImageButtonRemoveTooltip())
         }, this.inferScheduleButtonState = function() {
             var t, e = !TD.decider.get(TD.decider.DISABLE_SCHEDULED_MESSAGES),
-                i = (e || "message" !== this.tweetType) && !this.getFile();
-            i ? this.enableScheduleButton() : ("message" === this.tweetType ? t = TD.i("Direct messages cannot be scheduled.") : this.getFile() && (t = TD.i("Tweets with images cannot be scheduled")), this.disableScheduleButton(t))
+                i = "message" === this.tweetType,
+                s = !! this.getFile(),
+                n = i && s,
+                o = i ? e : !0,
+                r = s ? this.isScheduledImagesEnabled() : !0,
+                a = !n;
+            o ? r ? a || (t = TD.i("Direct messages containing images cannot be scheduled")) : t = TD.i("Tweets with images cannot be scheduled") : t = TD.i("Direct messages cannot be scheduled"), t ? this.disableScheduleButton(t) : this.enableScheduleButton()
         }, this.initScrollbars = function(t) {
             2 === arguments.length && (t = {});
             var e = this.$composeScroller.data("antiscroll");
@@ -9640,6 +10762,10 @@ function(t, e) {
             this.composeStayOpen || (e = this.attr.releaseFocusDelay), this.releaseFocusTimer = setTimeout(function() {
                 this.releaseFocusTimer = null, this.focusRelease()
             }.bind(this), e)
+        }, this.setMetadata = function(t) {
+            t ? this.metadata = t : delete this.metadata
+        }, this.getMetadata = function() {
+            return this.metadata
         }
     }
     var i = t("flight/lib/component"),
@@ -9660,281 +10786,554 @@ function(t, e) {
         w = t("ui/compose/with_send_button"),
         C = t("ui/compose/with_send_tweet"),
         T = t("ui/compose/with_stay_open"),
-        v = t("ui/compose/with_title");
-    return i(e, n, o, r, a, c, h, l, u, d, m, g, p, f, w, C, T, v)
-}), define("ui/drag_drop/drag_drop_controller", ["require", "flight/lib/component", "ui/drag_drop/with_drag_drop"], function(t) {
-    function e() {
-        this.after("initialize", function() {
-            this.on("dragstart", function(t) {
-                this.trigger(document, "uiDragStart", this.extractDataFromEvent(t))
-            }), this.on("dragend", function(t) {
-                this.trigger(document, "uiDragEnd", this.extractDataFromEvent(t))
-            })
-        })
-    }
-    var i = t("flight/lib/component"),
-        s = t("ui/drag_drop/with_drag_drop");
-    return i(e, s)
-}), define("ui/dropdown_crossover", ["require", "flight/lib/component"], function(t) {
-    function e() {
-        this.after("initialize", function() {
-            this.on(document, "uiDropdownShowing", function(t, e) {
-                e.isOld || this.trigger(document, "uiCloseDropdown")
-            }), this.on(document, "uiOldDropdownShowing", function() {
-                this.trigger(document, "uiDropdownShowing", {
-                    isOld: !0
-                })
-            })
-        })
-    }
-    var i = t("flight/lib/component");
-    return i(e)
-}), define("ui/with_drag_handle", ["require", "scripts/sync/util"], function(t) {
-    function e() {
-        this.setupDragHandle = function(t) {
-            ["boundary", "draggable", "handle"].forEach(function(e) {
-                i.assert(t[e], "Required parameter " + e + " omitted")
-            }), t.draggable.draggable({
-                boundary: t.boundary,
-                handle: t.handle
-            }).on("start.draggable", function() {
-                t.draggable.css({
-                    position: "absolute",
-                    top: t.draggable.offset().top,
-                    left: t.draggable.offset().left
-                }), t.boundary.addClass("is-dragging")
-            }).on("drop.draggable", function() {
-                t.boundary.removeClass("is-dragging")
-            })
-        }
-    }
-    var i = t("scripts/sync/util");
-    return e
-}), define("ui/modal/modal_controller", ["require", "flight/lib/component", "ui/with_template", "ui/with_drag_handle"], function(t) {
+        S = t("ui/compose/with_title");
+    return i(e, n, o, r, a, c, h, l, u, d, m, g, p, f, w, C, T, S)
+}), define("ui/user_selector", ["require", "flight/lib/component", "util/with_teardown", "ui/with_template", "ui/asynchronous_form"], function(t) {
     function e() {
         this.defaultAttrs({
-            modalContextTemplate: "modal/modal_context",
-            modalContextSelector: ".js-modal-context",
-            modalInnerSelector: ".js-modal-inner",
-            modalContentSelector: ".js-modal-content",
-            modalClickTrapSelector: ".js-click-trap",
-            modalDismissSelector: ".js-dismiss",
-            modalDragHandleSelector: ".js-drag-handle",
-            modalOptions: {
-                withCenteredFooter: !1,
-                withChrome: !0,
-                withClickTrap: !0,
-                withDismissButton: !0,
-                withDoneButton: !1,
-                withDraggable: !0,
-                withDragHandle: !0,
-                withFooter: !0,
-                withHeader: !0,
-                withBorder: !0,
-                withClasses: []
+            focusOnInit: !0,
+            clearOnSelect: !0,
+            blurOnSelect: !0,
+            templateName: "user_selector",
+            selectButtonIconClass: "icon-plus",
+            selectButtonSelector: ".js-select-button",
+            inputSelector: ".js-username-input"
+        }), this.after("initialize", function() {
+            this.render(this.attr.templateName, {
+                searchInputControlClass: "margin-tm",
+                selectButtonIconClass: this.attr.selectButtonIconClass
+            }), this.attachChild(o.mixin(s), this.$node), this.on("click", {
+                selectButtonSelector: this.handleInputSelection
+            }), this.on("uiInputSubmit", {
+                inputSelector: this.handleInputSelection
+            }), this.autocomplete = new TD.components.Autocomplete(this.select("inputSelector"), {
+                dmMode: !0
+            }), this.on(this.autocomplete.$node, "td-autocomplete-select", function(t, e) {
+                this.select("inputSelector").val(e), this.handleInputSelection()
+            }.bind(this)), this.attr.focusOnInit && _.defer(function() {
+                this.select("inputSelector").focus()
+            }.bind(this))
+        }), this.handleInputSelection = function() {
+            var t = this.select("inputSelector").val();
+            if (t) {
+                this.trigger(this.attr.inputSelector, "uiWaitingForAsyncResponse");
+                var e = TD.cache.twitterUsers.getByScreenName(t);
+                e.addCallbacks(this.triggerSelection.bind(this), this.handleError.bind(this)), e.addBoth(this.trigger.bind(this, this.attr.inputSelector, "uiReceivedAsyncResponse"))
             }
-        }), this.after("initialize", function() {
-            this.on(document, "uiNeedsModalContext", this.handleCreateModalContext), this.on("uiModalShowing", {
-                modalContextSelector: this.handleModalShowing
-            }), this.on("uiModalHiding", {
-                modalContextSelector: this.handleModalHiding
-            }), this.on("click", {
-                modalDismissSelector: this.handleModalDismiss,
-                modalClickTrapSelector: this.handleModalContextClick
-            })
-        }), this.handleCreateModalContext = function(t, e) {
-            var i = _.defaults(e || {}, this.attr.modalOptions),
-                s = this.createModalContext(i),
-                n = s.find(this.attr.modalInnerSelector);
-            s.addClass("is-hidden"), n.addClass(i.withClasses.join(" ")), this.$node.append(s), this.trigger("uiModalContext", {
-                id: i.id,
-                $node: s.find(this.attr.modalContentSelector)
-            }), i.withDraggable && this.setupDragHandle({
-                draggable: n,
-                handle: n.find(this.attr.modalDragHandleSelector),
-                boundary: s
-            })
-        }, this.createModalContext = function(t) {
-            return this.renderTemplate(this.attr.modalContextTemplate, t)
-        }, this.handleModalShowing = function(t, e) {
-            this.select("modalContextSelector").addClass("is-hidden"), $(e.el).removeClass("is-hidden")
-        }, this.handleModalHiding = function(t, e) {
-            $(e.el).remove()
-        }, this.handleModalDismiss = function() {
-            this.closeModals()
-        }, this.closeModals = function() {
-            this.trigger("uiCloseModal")
-        }, this.handleModalContextClick = function(t, e) {
-            var i = $(e.el),
-                s = $(t.target);
-            s.closest(this.attr.modalInnerSelector, i).length || this.closeModals()
-        }
-    }
-    var i = t("flight/lib/component"),
-        s = t("ui/with_template"),
-        n = t("ui/with_drag_handle");
-    return i(e, s, n)
-}), define("ui/migrate_confirm_start_warning", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_modalable"], function(t) {
-    function e() {
-        this.defaultAttrs({
-            template: "login/migrate_confirm_start_warning",
-            migrateContinueSelector: ".js-migrate-continue",
-            migrateCancelSelector: ".js-migrate-cancel",
-            migrateConfirmInputSelector: ".js-migrate-confirm-input"
-        }), this.after("initialize", function() {
-            this.on("click", {
-                migrateContinueSelector: this.handleMigrateContinue,
-                migrateCancelSelector: this.handleMigrateCancel
-            }), this.on("change", {
-                migrateConfirmInputSelector: function(t, e) {
-                    this.toggleDisabledContinue(!$(e.el).prop("checked"))
-                }
-            });
-            var t = TD.storage.accountController.getAccountsForService("twitter").length,
-                e = TD.storage.accountController.getPreferredAccount("twitter"),
-                i = "";
+        }, this.triggerSelection = function(t) {
+            this.trigger("uiUserSelected", {
+                user: t
+            }), this.attr.clearOnSelect && this.select("inputSelector").val(""), this.attr.blurOnSelect && this.select("inputSelector").blur()
+        }, this.handleError = function(t) {
+            var e;
             try {
-                i = e.getUsername()
-            } catch (s) {}
-            this.render(this.attr.template, {
-                numTwitterAccounts: t,
-                hasTwitterAccounts: t > 0,
-                hasOneAccount: 1 === t,
-                hasMultipleAccounts: 1 !== t,
-                twitterAccountScreenName: i
-            })
-        }), this.handleMigrateCancel = function() {
-            this.trigger("uiMigrateConfirmCancel"), this.teardown()
-        }, this.handleMigrateContinue = function() {
-            this.trigger("uiMigrateConfirmStart")
-        }, this.toggleDisabledContinue = function(t) {
-            this.select("migrateContinueSelector").prop("disabled", t).toggleClass("is-disabled", t)
-        }
-    }
-    var i = t("flight/lib/component"),
-        s = t("ui/with_template"),
-        n = t("ui/modal/with_modalable");
-    return i(e, s, n)
-}), define("ui/migrate_progress", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_modalable", "util/wait_at_least"], function(t) {
-    function e() {
-        this.defaultAttrs({
-            template: "login/migrate_progress",
-            transientErrorTemplate: "login/migrate_progress_transient_error",
-            mergeErrorTemplate: "login/migrate_progress_merge_error",
-            successTemplate: "login/migrate_progress_success",
-            minWaitTime: 3e3,
-            migrateProgressClass: "migrate-progress",
-            migrateInProgressClass: "migrate-in-progress",
-            migrateProgressSuccessClass: "migrate-progress-success",
-            migrateProgressPreviewSelector: ".js-migrate-progress-preview",
-            migrateProgressNextSelector: ".js-migrate-progress-next",
-            migrateProgressDoneSelector: ".js-dismiss",
-            migrateProgressErrorExitSelector: ".js-migrate-progress-error-exit",
-            twitterAccountUsername: "",
-            numAccountsAdded: 0,
-            numColumnsAdded: 0,
-            numScheduledAdded: 0,
-            numMuteItemsAdded: 0
-        }), this.after("initialize", function() {
-            this.on("click", {
-                migrateProgressErrorExitSelector: this.handleMigrateProgressExit,
-                migrateProgressNextSelector: this.handleMigrateProgressNextClick,
-                migrateProgressDoneSelector: this.handleMigrateProgressDoneClick
-            }), this.$node.addClass(this.attr.migrateProgressClass);
-            var t = this.attr.template;
-            this.attr.error ? t = "TransientError" === this.attr.error.data.error ? this.attr.transientErrorTemplate : this.attr.mergeErrorTemplate : (this.on(document, "TD.ready uiMigrateProgressAppReady", this.handleAppReady), this.initTimestamp = Date.now(), this.$node.addClass(this.attr.migrateInProgressClass)), this.render(t, {
-                error: this.attr.error,
-                twitterAccountUsername: this.attr.twitterAccountUsername,
-                numAccountsAdded: this.attr.numAccountsAdded,
-                numColumnsAdded: this.attr.numColumnsAdded,
-                numScheduledAdded: this.attr.numScheduledAdded,
-                numMuteItemsAdded: this.attr.numMuteItemsAdded
-            })
-        }), this.handleAppReady = function() {
-            o(this.attr.minWaitTime, this.initTimestamp, function() {
-                this.$node.removeClass(this.attr.migrateInProgressClass), setTimeout(this.handleMigrateProgressNextClick.bind(this), 2e3)
-            }, this)
-        }, this.handleMigrateProgressExit = function() {
-            this.trigger("uiMigrateProgressCancel")
-        }, this.handleMigrateProgressNextClick = function() {
-            this.trigger("uiMigrateProgressNext");
-            var t = TD.storage.accountController.getAccountFromId(TD.storage.store.getTwitterLoginAccount().getUserID()),
-                e = {
-                    id: t.getUserID(),
-                    screenName: t.getUsername(),
-                    name: t.getName(),
-                    profileImageURL: t.getProfileImageURL(),
-                    isVerified: !1
-                }, i = TD.storage.accountController.getAccountsForService("twitter").length;
-            this.$node.addClass(this.attr.migrateProgressSuccessClass), this.render(this.attr.successTemplate, {
-                twitterProfile: e,
-                hasMultipleAccounts: i > 1
-            })
-        }, this.handleMigrateProgressDoneClick = function() {
-            this.trigger("uiMigrateProgressDone")
-        }
-    }
-    var i = t("flight/lib/component"),
-        s = t("ui/with_template"),
-        n = t("ui/modal/with_modalable"),
-        o = t("util/wait_at_least");
-    return i(e, s, n)
-}), define("ui/migrate_controller", ["require", "flight/lib/component", "ui/with_template", "ui/modal/with_show_modal", "util/wait_at_least", "ui/migrate_confirm_start_warning", "ui/migrate_progress"], function(t) {
-    function e() {
-        this.defaultAttrs({
-            minProgressWaitTime: 1e3,
-            minCompleteWaitTime: 3e3,
-            modalConfig: {
-                withHeader: !1,
-                withFooter: !1,
-                withDraggable: !1,
-                withDragHandle: !1,
-                withDismissButton: !1,
-                withChrome: !1,
-                withBorder: !1,
-                withClickTrap: !1
+                e = t.req.errors[0].message
+            } finally {
+                e && TD.controller.progressIndicator.addMessage(e)
             }
-        }), this.after("initialize", function() {
-            this.on(document, "uiMigrateStart", this.handleUiMigrateStart), this.on(document, "uiMigrateConfirmStart", this.handleUiMigrateConfirmStart), this.on(document, "uiMigrateConfirmCancel", this.handleUiMigrateConfirmCancel), this.on(document, "uiMigrateProgressNext", this.handleMigrateProgressNext), this.on(document, "uiMigrateProgressDone", this.handleMigrateProgressDone), this.on(document, "uiMigrateProgressCancel", this.handleMigrateProgressCancel), this.on(document, "dataNeedsMigrateCompleteConfirmation", this.handleDataNeedsMigrateCompleteConfirmation), this.on(document, "uiMigrateSuccess", function(t, e) {
-                TD.controller.stats.migrateStartflow("migrate_progress", "impression"), this.migrateSuccessTimestamp = Date.now(), this.showModal(a, {
-                    twitterAccountUsername: TD.storage.store.getTwitterLoginAccount().getUsername(),
-                    numAccountsAdded: e.num_accounts_added,
-                    numColumnsAdded: e.num_columns_added,
-                    numScheduledAdded: e.num_scheduled_added,
-                    numMuteItemsAdded: e.num_mute_items_added
-                }, this.attr.modalConfig)
-            }), this.on(document, "uiMigrateError", function(t, e) {
-                TD.controller.stats.migrateStartflow("migrate_progress", "impression", !0), this.showModal(a, {
-                    error: e
-                }, this.attr.modalConfig)
-            })
-        }), this.handleUiMigrateConfirmStart = function() {
-            this.trigger("uiMigrateActive"), TD.controller.stats.migrateStartConfirmation("next"), TD.controller.init.signOut()
-        }, this.handleUiMigrateConfirmCancel = function() {
-            TD.controller.stats.migrateStartConfirmation("cancel")
-        }, this.handleUiMigrateStart = function() {
-            this.showModal(r, {}, this.attr.modalConfig), TD.controller.stats.migrateStartConfirmation("impression")
-        }, this.handleMigrateProgressNext = function() {
-            TD.controller.stats.migrateStartflow("migrate_progress", "next"), TD.controller.stats.migrateStartflow("migrate_progress_success", "impression")
-        }, this.handleMigrateProgressDone = function() {
-            TD.controller.stats.migrateStartflow("migrate_progress_success", "next")
-        }, this.handleMigrateProgressCancel = function() {
-            TD.controller.stats.migrateStartflow("migrate_progress", "previous"), TD.storage.store.setCurrentAuthType("tweetdeck"), this.trigger("uiMigrateCancel", {
-                clearMigrateData: !0
-            })
-        }, this.handleDataNeedsMigrateCompleteConfirmation = function() {
-            o(this.attr.minProgressWaitTime, this.migrateSuccessTimestamp, function() {
-                this.trigger("uiMigrateCompleteConfirmation")
-            }, this)
         }
     }
     var i = t("flight/lib/component"),
-        s = t("ui/with_template"),
-        n = t("ui/modal/with_show_modal"),
-        o = t("util/wait_at_least"),
-        r = t("ui/migrate_confirm_start_warning"),
-        a = t("ui/migrate_progress");
+        s = t("util/with_teardown"),
+        n = t("ui/with_template"),
+        o = t("ui/asynchronous_form");
     return i(e, s, n)
+}), define("ui/contributor_list", ["require", "flight/lib/component", "data/with_accounts", "ui/with_template", "ui/with_transitions"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            accountKey: null,
+            contributorRowSelector: ".js-contributor-row",
+            contributorRowClass: "js-contributor-row",
+            contributorRemoveSelector: ".js-contributor-remove",
+            contributorIsAdminSelector: ".js-contributor-is-admin",
+            actionConfirmSelector: ".js-contributor-action-confirm",
+            actionCancelSelector: ".js-contributor-action-cancel",
+            STATE_INITIAL: "initial",
+            STATE_SETTINGS: "settings",
+            STATE_CONFIRM_ADD: "confirmAdd",
+            STATE_CONFIRM_DEADMIN: "confirmDeadmin",
+            STATE_CONFIRM_REMOVE: "confirmRemove",
+            STATE_REMOVING: "confirmRemove-removing",
+            scrollDuration: 300,
+            focusDuration: 800
+        }), this.after("initialize", function() {
+            this.state = {
+                contributee: TD.storage.accountController.get(this.attr.accountKey),
+                contributorIndex: {}
+            }, this.on(document, "dataContributorsError", this.handleContributorsError), this.on(document, "dataContributors", this.handleContributors), this.on(document, "dataContributor", this.handleContributor), this.on(document, "dataContributorActionSuccess", this.handleContributorActionSuccess), this.on(document, "dataContributorActionError", this.handleContributorActionError), this.on("click", {
+                contributorRemoveSelector: this.handleRemoveContributor,
+                contributorIsAdminSelector: this.handleSetIsAdmin,
+                actionConfirmSelector: this.handleActionConfirmClick,
+                actionCancelSelector: this.handleActionCancelClick
+            }), this.render("spinner_large"), this.trigger("uiNeedsContributors", {
+                accountKey: this.attr.accountKey
+            })
+        }), this.sortByName = function(t, e) {
+            var i = "string" == typeof t ? t.toLowerCase() : t.user.name.toLowerCase(),
+                s = "string" == typeof e ? e.toLowerCase() : e.user.name.toLowerCase();
+            return s > i ? -1 : i > s ? 1 : 0
+        }, this.getElemByUserId = function(t, e) {
+            return this.select(t).filter(function() {
+                return $(this).attr("data-user-id") === e
+            })
+        }, this.handleContributorsError = function(t, e) {
+            e.request.accountKey === this.attr.accountKey && this.render("contributors/contributor_list_error")
+        }, this.handleContributors = function(t, e) {
+            if (e.accountKey === this.attr.accountKey) {
+                var i = this.state.contributorIndex;
+                this.state.contributorIndex = e.contributors.reduce(function(t, e) {
+                    return t[e.user.id] = e, t
+                }, {}), Object.keys(i).forEach(function(t) {
+                    this.state.contributorIndex[t] || this.removeContributorFromList(t)
+                }.bind(this)), e.contributors.length ? e.contributors.forEach(function(t) {
+                    this.setStateOrCreateContributor(t, this.attr.STATE_SETTINGS)
+                }.bind(this)) : this.render("contributors/contributor_list_no_results")
+            }
+        }, this.handleContributor = function(t, e) {
+            if (e.accountKey === this.attr.accountKey) {
+                var i = this.state.contributorIndex[e.contributor.user.id];
+                i && e.contributor.isUnconfirmed || (i = e.contributor, this.state.contributorIndex[e.contributor.user.id] = i);
+                var s = i.isUnconfirmed ? this.attr.STATE_CONFIRM_ADD : this.attr.STATE_SETTINGS;
+                this.setStateOrCreateContributor(e.contributor, s), e.contributor.isUnconfirmed && this.scrollToContributor(e.contributor.user.id)
+            }
+        }, this.handleRemoveContributor = function(t, e) {
+            var i = $(e.el),
+                s = i.attr("data-user-id"),
+                n = this.state.contributorIndex[s];
+            this.setStateOrCreateContributor(n, this.attr.STATE_CONFIRM_REMOVE)
+        }, this.handleSetIsAdmin = function(t, e) {
+            var i = $(e.el),
+                s = i.attr("data-user-id"),
+                n = this.state.contributorIndex[s],
+                o = i.prop("checked"),
+                r = this.getTwitterLoginAccount(),
+                a = r && r.userId === s;
+            a && !o ? this.setStateOrCreateContributor(n, this.attr.STATE_CONFIRM_DEADMIN) : this.trigger("uiContributorAction", {
+                accountKey: this.attr.accountKey,
+                action: "update",
+                userId: s,
+                isAdmin: o
+            })
+        }, this.handleActionConfirmClick = function(t, e) {
+            var i = $(e.el).attr("data-user-id"),
+                s = this.state.contributorIndex[i],
+                n = this.getOrCreateContributorRow(s).attr("data-state"),
+                o = {
+                    accountKey: this.attr.accountKey,
+                    userId: i,
+                    action: null
+                };
+            switch (n) {
+                case this.attr.STATE_CONFIRM_ADD:
+                    o.action = "add", this.setStateOrCreateContributor(s, this.attr.STATE_SETTINGS);
+                    break;
+                case this.attr.STATE_CONFIRM_DEADMIN:
+                    o.action = "update", o.isAdmin = !1, this.setStateOrCreateContributor(s, this.attr.STATE_SETTINGS);
+                    break;
+                case this.attr.STATE_CONFIRM_REMOVE:
+                    o.action = "remove", this.setStateOrCreateContributor(s, this.attr.STATE_REMOVING)
+            }
+            o.action && this.trigger("uiContributorAction", o)
+        }, this.handleActionCancelClick = function(t, e) {
+            var i = $(e.el).attr("data-user-id"),
+                s = this.state.contributorIndex[i],
+                n = this.getOrCreateContributorRow(s),
+                o = n.attr("data-state");
+            switch (o) {
+                case this.attr.STATE_CONFIRM_ADD:
+                    this.removeContributorFromList(i);
+                    break;
+                case this.attr.STATE_CONFIRM_DEADMIN:
+                    n.find(this.attr.contributorIsAdminSelector).prop("checked", !0), this.setStateOrCreateContributor(s, this.attr.STATE_SETTINGS);
+                    break;
+                case this.attr.STATE_CONFIRM_REMOVE:
+                    this.setStateOrCreateContributor(s, this.attr.STATE_SETTINGS)
+            }
+        }, this.handleContributorActionSuccess = function(t, e) {
+            if (e.request.accountKey === this.attr.accountKey) switch (e.request.action) {
+                case "remove":
+                    this.removeContributorFromList(e.request.userId)
+            }
+        }, this.handleContributorActionError = function(t, e) {
+            if (e.request.accountKey === this.attr.accountKey) {
+                var i = this.state.contributorIndex[e.request.userId];
+                if (i) switch (e.request.action) {
+                    case "update":
+                        if (i.isUnconfirmed) this.setStateOrCreateContributor(i, this.attr.STATE_CONFIRM_ADD);
+                        else {
+                            var s = this.getElemByUserId("contributorIsAdminSelector", e.request.userId);
+                            s.prop("checked", !e.request.isAdmin)
+                        }
+                        break;
+                    default:
+                        this.revertContributorState(i)
+                }
+            }
+        }, this.setStateOrCreateContributor = function(t, e) {
+            var i = this.getOrCreateContributorRow(t),
+                s = i.attr("data-state");
+            e !== s && this.animateElementHeightChange(i, function() {
+                i.attr("data-previous-state", s), i.attr("data-state", e)
+            }, "")
+        }, this.revertContributorState = function(t) {
+            var e = this.getOrCreateContributorRow(t).attr("data-previous-state");
+            this.setStateOrCreateContributor(t, e)
+        }, this.scrollToContributor = function(t) {
+            var e = this.getElemByUserId("contributorRowSelector", t);
+            setTimeout(function() {
+                e.addClass("contributor-focus")
+            }.bind(this), 1), setTimeout(function() {
+                e.removeClass("contributor-focus")
+            }, this.attr.focusDuration);
+            var i = this.$node.scrollTop(),
+                s = i + e.position().top;
+            this.$node.animate({
+                scrollTop: s + "px"
+            })
+        }, this.removeContributorFromList = function(t) {
+            var e = this.getElemByUserId("contributorRowSelector", t);
+            e.remove(), delete this.state.contributorIndex[t], 0 === this.select("contributorRowSelector").length && this.render("contributors/contributor_list_no_results")
+        }, this.removeMessages = function() {
+            this.$node.contents().filter(function(t, e) {
+                return !$(e).hasClass(this.attr.contributorRowClass)
+            }.bind(this)).remove()
+        }, this.getOrCreateContributorRow = function(t) {
+            this.removeMessages();
+            var e = this.select("contributorRowSelector").filter(function() {
+                return $(this).attr("data-user-id") === t.user.id
+            });
+            if (0 === e.length) {
+                var i = !1;
+                e = this.renderContributorRow(t), this.select("contributorRowSelector").each(function(s, n) {
+                    var o = $(n);
+                    !i && 1 === this.sortByName(o.attr("data-name"), t) && (e.insertBefore(o), i = !0)
+                }.bind(this)), i || this.$node.append(e)
+            }
+            return e
+        }, this.renderContributorRow = function(t) {
+            var e = this.getTwitterLoginAccount(),
+                i = {
+                    initialState: this.attr.STATE_INITIAL,
+                    contributor: t,
+                    contributee: this.state.contributee,
+                    isSigninAccount: e && t.user.id === e.userId
+                };
+            return this.renderTemplate("contributors/contributor_list_row", i)
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("data/with_accounts"),
+        n = t("ui/with_template"),
+        o = t("ui/with_transitions");
+    return i(e, s, n, o)
+}), define("ui/contributor_manager", ["require", "flight/lib/component", "data/with_accounts", "ui/modal/with_modalable", "ui/with_template", "util/with_teardown", "ui/user_selector", "ui/contributor_list"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            accountKey: null,
+            contributorAdderSelector: ".js-contributor-adder",
+            contributorListSelector: ".js-contributor-list"
+        }), this.after("initialize", function() {
+            this.renderContributorManager(), this.attachChild(a, this.attr.contributorAdderSelector), this.attachChild(c, this.attr.contributorListSelector, {
+                accountKey: this.attr.accountKey
+            }), this.on("uiUserSelected", {
+                contributorAdderSelector: this.handleUserSelection
+            }), this.setContributorListPosition()
+        }), this.renderContributorManager = function() {
+            var t = this.getAccount(this.attr.accountKey);
+            t.getProfileURL = "https://twitter.com/" + t.screenName, t.profileImageURL = t.profileImageURL, this.render("contributors/contributor_manager", {
+                account: t,
+                withUserBio: !1,
+                withUserMenu: !1
+            })
+        }, this.setContributorListPosition = function() {
+            var t = this.select("contributorListSelector");
+            t.css({
+                position: "absolute",
+                top: t.position().top,
+                bottom: 0,
+                left: 0,
+                right: 0
+            })
+        }, this.handleUserSelection = function(t, e) {
+            this.trigger("dataContributor", {
+                accountKey: this.attr.accountKey,
+                contributor: {
+                    user: e.user,
+                    isAdmin: !1,
+                    isUnconfirmed: !0
+                }
+            })
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("data/with_accounts"),
+        n = t("ui/modal/with_modalable"),
+        o = t("ui/with_template"),
+        r = t("util/with_teardown"),
+        a = t("ui/user_selector"),
+        c = t("ui/contributor_list");
+    return i(e, s, n, o, r)
+}), define("ui/account_settings", ["require", "flight/lib/component", "ui/with_accordion", "data/with_accounts", "util/with_teardown", "ui/with_template", "ui/contributor_manager"], function(t) {
+    function e() {
+        this.defaultAttrs({
+            accountManagerContainerSelector: ".js-account-manager-container",
+            contributorManagerContainerSelector: ".js-contributor-manager-container",
+            contributorManagerSelector: ".js-contributor-manager",
+            contributorManagerBackSelector: ".js-contributor-manager-back",
+            actionButtonSelector: ".js-account-action",
+            defaultAccountContainerSelector: ".js-account-default-account",
+            defaultAccountComboSelector: ".js-account-set-default",
+            accountRowSelector: ".js-account-settings-row",
+            accountDetailSelector: ".js-account-settings-detail",
+            accountSummarySelector: ".js-account-settings-summary",
+            accountsContainerSelector: ".js-account-settings-accounts",
+            passwordResetErrorSelector: ".js-password-reset-error",
+            passwordResetSuccessSelector: ".js-password-reset-success",
+            profileLinkSelector: 'a[rel="user"]',
+            firstExpandDelay: 0
+        }), this.after("initialize", function() {
+            this.state = {
+                accounts: [],
+                isTwogin: "twitter" === this.getCurrentAuthType(),
+                contributorManagerAccountKey: null
+            }, this.on(document, "dataAccounts", this.handleDataAccounts), this.on(document, "dataAccountActionError", this.handleAccountActionError), this.on(document, "dataAccountActionSuccess", this.handleAccountActionSuccess), this.on(document, "uiDrawerActive", this.handleActiveDrawer), this.on("click", {
+                actionButtonSelector: this.handleActionButtonClick,
+                contributorManagerBackSelector: this.hideContributorManager,
+                profileLinkSelector: this.handleProfileLinkClick
+            }), this.on("change", {
+                defaultAccountComboSelector: this.handleDefaultAccountSelected
+            });
+            var t = this.getAccountsForService("twitter");
+            this.render("settings/account_settings", {
+                withPasswordReset: !this.state.isTwogin,
+                withDefaultAccountSelector: t.length > 1,
+                accounts: t,
+                withContributors: TD.config.contributors && this.state.isTwogin,
+                tweetDeckAccountEmail: this.getTweetdeckLoginEmail()
+            }), $(document).one("uiShowAccountSettings", this.showFirstAccount.bind(this)), this.on("uiAccordionExpandAction", this.handleAccordionItemExpanded)
+        }), this.showFirstAccount = function() {
+            setTimeout(function() {
+                this.select("accordionToggleSelector").eq(0).click()
+            }.bind(this), this.attr.firstExpandDelay)
+        }, this.handleDataAccounts = function(t, e) {
+            var i = e.accounts.length > 1,
+                s = {}, n = this.select("defaultAccountContainerSelector");
+            n.replaceWith(this.renderTemplate("settings/account_settings_default_selector", {
+                accounts: e.accounts,
+                withDefaultAccountSelector: i
+            })), this.renderAccounts(e.accounts), this.state.contributorManagerAccountKey && (s[this.state.contributorManagerAccountKey] ? s[this.state.contributorManagerAccountKey].isAdmin || this.hideContributorManager() : this.hideContributorManager())
+        }, this.renderAccounts = function(t) {
+            var e, i = this.select("accountRowSelector"),
+                s = this.select("accountsContainerSelector"),
+                n = t.map(function(t) {
+                    return t.accountKey
+                });
+            i.each(function(t, e) {
+                var i = $(e),
+                    s = i.attr("data-account-key"); - 1 === n.indexOf(s) && i.remove()
+            }), t.forEach(function(t) {
+                var n = i.filter('[data-account-key="' + t.accountKey + '"]'),
+                    o = n.hasClass(this.attr.accordionIsExpandedClass),
+                    r = $.extend({}, t, {
+                        isExpanded: o,
+                        withContributors: TD.config.contributors && this.state.isTwogin
+                    }),
+                    a = this.renderTemplate("settings/account_settings_row", r);
+                n.length > 0 && n.replaceWith(a), e ? e.after(a) : s.prepend(a), e = a
+            }, this)
+        }, this.handleDefaultAccountSelected = function(t, e) {
+            var i = $(e.el).val();
+            this.trigger("uiAccountAction", {
+                action: "setDefault",
+                accountKey: i
+            }), this.trigger(document, "scribeEvent", {
+                terms: {
+                    page: "settings",
+                    section: "accounts",
+                    element: "default",
+                    action: "select"
+                }
+            })
+        }, this.handleActionButtonClick = function(t, e) {
+            var i = $(e.el).attr("data-action"),
+                s = $(e.el).attr("data-account-key"),
+                n = {
+                    page: "settings",
+                    section: "accounts",
+                    component: {
+                        remove: "account",
+                        manageContributors: "account"
+                    }[i],
+                    element: {
+                        remove: "remove",
+                        add: "add_twitter_account",
+                        passwordReset: "reset_password",
+                        manageContributors: "show_contributor_manager"
+                    }[i],
+                    action: "click"
+                };
+            switch (i) {
+                case "remove":
+                    this.trigger("uiAccountAction", {
+                        action: i,
+                        accountKey: s
+                    });
+                    break;
+                case "add":
+                    this.trigger("uiAccountAction", {
+                        action: i
+                    });
+                    break;
+                case "passwordReset":
+                    $(e.el).prop("disabled", "true"), this.trigger("uiAccountAction", {
+                        action: i
+                    });
+                    break;
+                case "manageContributors":
+                    this.showContributorManager(s)
+            }
+            this.trigger(document, "scribeEvent", {
+                terms: n
+            })
+        }, this.handleActiveDrawer = function(t, e) {
+            e.activeDrawer || this.hideContributorManager()
+        }, this.showContributorManager = function(t) {
+            var e = this.select("accountManagerContainerSelector"),
+                i = this.select("contributorManagerContainerSelector"),
+                s = this.select("contributorManagerSelector");
+            this.trigger(document, this.childTeardownEvent), s.empty(), e.addClass("is-hidden"), i.removeClass("is-hidden"), this.state.contributorManagerAccountKey = t, this.attachChild(a, s, {
+                accountKey: t
+            })
+        }, this.hideContributorManager = function() {
+            var t = this.select("accountManagerContainerSelector"),
+                e = this.select("contributorManagerContainerSelector");
+            this.trigger(document, this.childTeardownEvent), this.state.contributorManagerAccountKey = null, t.removeClass("is-hidden"), e.addClass("is-hidden")
+        }, this.handleAccountActionSuccess = function(t, e) {
+            switch (e.request.action) {
+                case "passwordReset":
+                    this.select("actionButtonSelector").filter('[data-action="passwordReset"]').prop("disabled", !1), this.select("passwordResetErrorSelector").addClass("is-hidden"), this.select("passwordResetSuccessSelector").removeClass("is-hidden")
+            }
+        }, this.handleAccountActionError = function(t, e) {
+            switch (e.request.action) {
+                case "passwordReset":
+                    this.select("actionButtonSelector").filter('[data-action="passwordReset"]').prop("disabled", !1), this.select("passwordResetErrorSelector").removeClass("is-hidden"), this.select("passwordResetSuccessSelector").addClass("is-hidden")
+            }
+        }, this.handleAccordionItemExpanded = function() {
+            this.trigger(document, "scribeEvent", {
+                terms: {
+                    page: "settings",
+                    section: "accounts",
+                    component: "account",
+                    action: "impression"
+                }
+            })
+        }, this.handleProfileLinkClick = function() {
+            this.trigger(document, "scribeEvent", {
+                terms: {
+                    page: "settings",
+                    section: "accounts",
+                    component: "account",
+                    element: "show_profile",
+                    action: "click"
+                }
+            })
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/with_accordion"),
+        n = t("data/with_accounts"),
+        o = t("util/with_teardown"),
+        r = t("ui/with_template"),
+        a = t("ui/contributor_manager");
+    return i(e, n, r, s, o)
+}), define("ui/drawer", ["require", "flight/lib/component", "ui/compose/docked_compose", "ui/account_settings", "util/with_teardown"], function(t) {
+    function e() {
+        var t = "compose",
+            e = "accountSettings",
+            i = {};
+        i[e] = "accounts", this.defaultAttrs({
+            contentSelector: ".js-app-content",
+            drawerSelector: ".js-drawer",
+            closeDrawerSelector: ".js-drawer-close",
+            composeSelector: ".js-drawer-compose",
+            accountSettingsSelector: ".js-drawer-account-settings",
+            drawerWidth: 245,
+            transitionDuration: 200,
+            accountSettingsExpandDelay: 200
+        }), this.after("initialize", function() {
+            this.state = {
+                drawerOpen: !1
+            }, this.$content = this.select("contentSelector"), this.on(document, "uiDrawerClose", this.handleDrawerClose), this.on(document, "uiShowAccountSettings", this.handleShowAccountSettings), this.on(document, "uiToggleDockedCompose", this.handleToggleDockedCompose), this.on("click", {
+                closeDrawerSelector: this.handleCloseDrawerClick
+            }), this.attachChild(s, this.getDrawerContainer(t)), this.attachChild(n, this.getDrawerContainer(e), {
+                firstExpandDelay: this.attr.transitionDuration + this.attr.accountSettingsExpandDelay
+            })
+        }), this.getDrawerContainer = function(t) {
+            return this.select("drawerSelector").filter(function() {
+                return $(this).attr("data-drawer") === t
+            })
+        }, this.handleDrawerClose = function() {
+            this.hideDrawer({
+                withAnimation: !0
+            })
+        }, this.handleCloseDrawerClick = function() {
+            this.hideDrawer({
+                withAnimation: !0
+            })
+        }, this.handleShowAccountSettings = function() {
+            TD.config.account_settings_drawer && this.showDrawer({
+                drawer: e,
+                withAnimation: !0
+            })
+        }, this.handleToggleDockedCompose = function(e, i) {
+            i.opening ? this.showDrawer({
+                drawer: t,
+                withAnimation: !i.noAnimate
+            }) : this.hideDrawer({
+                withAnimation: !i.noAnimate
+            })
+        }, this.applyContentTransition = function(t) {
+            TD.ui.main.TRANSITION_END_EVENTS && this.$content.one(TD.ui.main.TRANSITION_END_EVENTS, this.handleTransitionEnd.bind(this)), this.$content.css(t), TD.ui.main.TRANSITION_END_EVENTS || this.handleTransitionEnd()
+        }, this.hideDrawer = function(t) {
+            this.state.drawerOpen && (this.setTransitionDuration(t.withAnimation), this.state.drawerOpen = !1, this.applyContentTransition({
+                transform: "translateX(0px)",
+                "margin-right": "0"
+            }), this.trigger("uiDrawerActive", {
+                activeDrawer: null
+            }))
+        }, this.showDrawer = function(t) {
+            this.setVisibleDrawer(t.drawer), this.trigger("uiDrawerActive", {
+                activeDrawer: t.drawer
+            }), this.state.drawerOpen || (this.setTransitionDuration(t.withAnimation), this.state.drawerOpen = !0, this.applyContentTransition({
+                transform: "translateX(" + this.attr.drawerWidth + "px)"
+            })), i[t.drawer] && this.trigger(document, "scribeEvent", {
+                terms: {
+                    page: "settings",
+                    section: i[t.drawer],
+                    action: "impression"
+                }
+            })
+        }, this.handleTransitionEnd = function() {
+            this.state.drawerOpen && this.$content.css({
+                "margin-right": this.attr.drawerWidth
+            }), this.trigger("uiDrawerTransitionComplete")
+        }, this.setVisibleDrawer = function(t) {
+            this.trigger("uiCloseModal"), this.select("drawerSelector").addClass("is-hidden");
+            var e = this.getDrawerContainer(t);
+            e.removeClass("is-hidden")
+        }, this.setTransitionDuration = function(t) {
+            t ? this.$content.css({
+                "transition-duration": this.attr.transitionDuration + "ms"
+            }) : this.$content.css({
+                "transition-duration": "0"
+            })
+        }
+    }
+    var i = t("flight/lib/component"),
+        s = t("ui/compose/docked_compose"),
+        n = t("ui/account_settings"),
+        o = t("util/with_teardown");
+    return i(e, o)
 }), define("ui/features/custom_timelines", ["flight/lib/component"], function(t) {
     function e() {
         this.defaultAttrs({
@@ -9957,11 +11356,11 @@ function(t, e) {
                 enabled: this.enabled
             })
         }, this.onFeatureChange = function(t, e) {
-            TD.sync.util.stateLog("Custom timelines state changed to " + (e.enabled ? "enabled" : "disabled"))
+            TD.sync.util.stateLog("Collection state changed to " + (e.enabled ? "enabled" : "disabled"))
         }
     }
     return t(e)
-}), define("page/default", ["require", "flight/lib/component", "util/data_setup", "ui/keyboard_shortcuts", "ui/message_banner", "ui/app_search", "ui/column_controller", "ui/grid", "ui/focus_controller", "ui/confirmation_dialog_controller", "ui/with_dialog_manager", "ui/message_banner_container", "ui/image_upload", "ui/login/startflow", "ui/login/sole_user_dialog", "ui/column_navigation", "ui/search/search_in_popover", "ui/typeahead/typeahead_dropdown", "ui/search/search_results", "ui/search/search_router", "ui/app_header", "ui/default_page_layout", "ui/compose/compose_controller", "ui/compose/docked_compose", "ui/drag_drop/drag_drop_controller", "ui/dropdown_crossover", "ui/modal/modal_controller", "ui/migrate_controller", "ui/features/custom_timelines"], function(t) {
+}), define("page/default", ["require", "flight/lib/component", "util/data_setup", "ui/keyboard_shortcuts", "ui/message_banner", "ui/app_search", "ui/column_controller", "ui/grid", "ui/grid_scroll", "ui/focus_controller", "ui/confirmation_dialog_controller", "ui/with_dialog_manager", "ui/message_banner_container", "ui/image_upload", "ui/login/startflow", "ui/login/sole_user_dialog", "ui/column_navigation", "ui/columns/column_order", "ui/search/search_in_popover", "ui/typeahead/typeahead_dropdown", "ui/search/search_results", "ui/search/search_router", "ui/app_header", "ui/default_page_layout", "ui/compose/compose_controller", "ui/drag_drop/drag_drop_controller", "ui/modal/modal_controller", "ui/migrate_controller", "ui/actions_menu", "ui/columns/column_drag_drop", "ui/drawer", "ui/features/custom_timelines"], function(t) {
     function e() {
         this.defaultAttrs({
             modal: "#open-modal",
@@ -9972,9 +11371,10 @@ function(t, e) {
             searchPopoverSourceId: "searchPopover",
             isHiddenClass: "is-hidden",
             gridFocusId: "grid_focus",
-            modalsContainerSelector: ".js-modals-container"
+            modalsContainerSelector: ".js-modals-container",
+            columnScrollContainerSelector: ".js-app-columns-container"
         }), this.initSearchInPopover = function() {
-            w.attachTo(".js-search-in-popover", {
+            T.attachTo(".js-search-in-popover", {
                 popoverPosition: "rt",
                 closeModals: !0,
                 appSearchSourceId: this.attr.appSearchSourceId,
@@ -9982,20 +11382,20 @@ function(t, e) {
                 isHiddenClass: this.attr.isHiddenClass
             }), r.attachTo(".js-search-in-popover", {
                 sourceId: this.attr.searchPopoverSourceId
-            }), C.attachTo(".js-search-in-popover"), T.attachTo(".js-search-in-popover")
+            }), S.attachTo(".js-search-in-popover"), v.attachTo(".js-search-in-popover")
         }, this.initUI = function() {
-            this.$node.find(".js-app").removeClass(this.attr.isHiddenClass), $("body", "html").removeClass("scroll-v"), k.attachTo(this.$node), y.attachTo(this.$node), h.attachTo(this.$node), D.attachTo(this.$node), d.attachTo(this.$node), o.attachTo(this.select("message")), l.attachTo(this.$node), A.attachTo(this.$node), a.attachTo(this.$node, {
+            this.$node.find(".js-app").removeClass(this.attr.isHiddenClass), $("body", "html").removeClass("scroll-v"), R.attachTo(this.$node), D.attachTo(this.$node), l.attachTo(this.$node), A.attachTo(this.$node), m.attachTo(this.$node), o.attachTo(this.select("message")), u.attachTo(this.$node), F.attachTo(this.$node), E.attachTo(this.$node), a.attachTo(this.$node, {
                 focusId: this.attr.gridFocusId
-            }), c.attachTo(this.$node, {
+            }), C.attachTo(this.select("columnScrollContainerSelector")), c.attachTo(this.$node, {
                 focusId: this.attr.gridFocusId
-            }), m.attachTo("#compose-modal"), S.attachTo(".js-app-header"), b.attachTo(".js-app"), _.attachTo(".js-new-compose"), f.attachTo("#column-navigator"), r.attachTo(".js-search-form", {
+            }), h.attachTo(this.$node), g.attachTo("#compose-modal"), y.attachTo(".js-app-header"), _.attachTo(".js-app"), M.attachTo(this.$node), w.attachTo("#column-navigator"), r.attachTo(".js-search-form", {
                 sourceId: this.attr.appSearchSourceId
-            }), this.initSearchInPopover(), v.attachTo(this.$node), n.attachTo(this.$node)
+            }), this.initSearchInPopover(), b.attachTo(this.$node), n.attachTo(this.$node)
         }, this.after("initialize", function() {
             function t(t, e) {
-                p.attachTo(".js-app-loading", e)
+                f.attachTo(".js-app-loading", e)
             }
-            s.attachTo(this.$node), I.attachTo(this.attr.modalsContainerSelector), F.attachTo(this.$node), g.attachTo(".js-app-loading", {
+            s.attachTo(this.$node), I.attachTo(this.attr.modalsContainerSelector), k.attachTo(this.$node), p.attachTo(".js-app-loading", {
                 teardownOn: "TD.ready"
             }), this.on(document, "TD.ready", function() {
                 this.initUI(), this.off(document, "uiLoginShowSoleUserDialog", t)
@@ -10009,28 +11409,31 @@ function(t, e) {
         r = t("ui/app_search"),
         a = t("ui/column_controller"),
         c = t("ui/grid"),
-        h = t("ui/focus_controller"),
-        l = t("ui/confirmation_dialog_controller"),
-        u = t("ui/with_dialog_manager"),
-        d = t("ui/message_banner_container"),
-        m = t("ui/image_upload"),
-        g = t("ui/login/startflow"),
-        p = t("ui/login/sole_user_dialog"),
-        f = t("ui/column_navigation"),
-        w = t("ui/search/search_in_popover"),
-        C = t("ui/typeahead/typeahead_dropdown"),
-        T = t("ui/search/search_results"),
-        v = t("ui/search/search_router"),
-        S = t("ui/app_header"),
-        y = t("ui/default_page_layout"),
-        b = t("ui/compose/compose_controller"),
-        _ = t("ui/compose/docked_compose"),
-        D = t("ui/drag_drop/drag_drop_controller"),
-        A = t("ui/dropdown_crossover"),
+        h = t("ui/grid_scroll"),
+        l = t("ui/focus_controller"),
+        u = t("ui/confirmation_dialog_controller"),
+        d = t("ui/with_dialog_manager"),
+        m = t("ui/message_banner_container"),
+        g = t("ui/image_upload"),
+        p = t("ui/login/startflow"),
+        f = t("ui/login/sole_user_dialog"),
+        w = t("ui/column_navigation"),
+        C = t("ui/columns/column_order"),
+        T = t("ui/search/search_in_popover"),
+        S = t("ui/typeahead/typeahead_dropdown"),
+        v = t("ui/search/search_results"),
+        b = t("ui/search/search_router"),
+        y = t("ui/app_header"),
+        D = t("ui/default_page_layout"),
+        _ = t("ui/compose/compose_controller"),
+        A = t("ui/drag_drop/drag_drop_controller"),
         I = t("ui/modal/modal_controller"),
-        F = t("ui/migrate_controller"),
-        k = t("ui/features/custom_timelines");
-    return i(e, u)
+        k = t("ui/migrate_controller"),
+        F = t("ui/actions_menu"),
+        E = t("ui/columns/column_drag_drop"),
+        M = t("ui/drawer"),
+        R = t("ui/features/custom_timelines");
+    return i(e, d)
 }), define("td/lib/require-domready", [], function() {
     function t(t) {
         var e;
