@@ -58,43 +58,51 @@ this.TD_mustaches["column/column_header.mustache"]=
     ```
 
 
-5. Add javascript to main file.
-    Search Keys
-        handleMarkAllRead
-            add these lines to the action function variables
-                ```
+5. Add javascript to main.js file.
+
+###Search Keys
+
+* 'handleMarkAllRead'
+
+add these lines to the action function variables
+```
+                
         }, this.handleColumnClear = function() {
             this.column.clear(), this.trigger("uiClearColumnAction", {
                 columnId: this.column.model.getKey()
             });
-                ```
-            add these lines to the event registration protion
-                ```, this.on("uiColumnClearAction", this.handleColumnClear), 
-                ```
+```
 
-        mark-all-read
-            add these lines to the action switch
-                ```
+add these lines to the event registration protion
+```
+ , this.on("uiColumnClearAction", this.handleColumnClear)
+```
+
+* 'mark-all-read'
+
+add these lines to the action switch
+```
                     case "clear":
                         s.trigger("uiColumnClearAction", {
                             columnKey: n
                         });
                         break;
-                ```
+```
 
-        column/column_header
-            add these lines to the template variables object
-                ```
+* 'column/column_header'
+
+add these lines to the template variables object
+```
                         hasHeaderAction: hA,
                         isClearable: iC,
-                ```
+```
 
-            add these lines to the end of the javascript right before the template variable object. 
-            you have to find out the column parameter is `mCol = ?`. 
-            look for `isMessageColumn()` method call  a line up and find the object.
-                ```
+add these lines to the end of the javascript right before the template variable object. 
+you have to find out the column parameter is `mCol = ?`. 
+look for `isMessageColumn()` method call a line up and find the object.
+```
                         var mCol = ?,
                         cMes = mCol.isMessageColumn(), 
                         iC = !cMes && mCol.isClearable(),
                         hA = cMes || iC;
-                ```
+```
